@@ -10,12 +10,8 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background gradient
-                LinearGradient(
-                    colors: [Color(hex: "0a0a0f"), Color(hex: "12121a")],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // Background - solid zinc
+                Color(hex: "09090b")
                 .ignoresSafeArea()
 
                 VStack(spacing: 32) {
@@ -61,37 +57,22 @@ struct ContentView: View {
     // MARK: - Header View
     private var headerView: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("SonicPay")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color(hex: "6366f1"), Color(hex: "a855f7")],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                Text("Wallet")
-                    .font(.title2)
-                    .foregroundColor(.gray)
-            }
+            Text("👀 dontlook.fyi")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
 
             Spacer()
 
-            // Balance display
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("$1,234.56")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                Text("Balance")
+            // Status indicator
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(receiver.isListening ? Color(hex: "10b981") : Color(hex: "52525b"))
+                    .frame(width: 8, height: 8)
+                Text(receiver.isListening ? "Listening" : "Ready")
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color(hex: "71717a"))
             }
-            .padding()
-            .background(Color(hex: "1a1a25"))
-            .cornerRadius(12)
         }
     }
 
@@ -120,7 +101,7 @@ struct ContentView: View {
         VStack(spacing: 24) {
             Image(systemName: "wave.3.right")
                 .font(.system(size: 80))
-                .foregroundColor(Color(hex: "6366f1").opacity(0.5))
+                .foregroundColor(Color(hex: "3b82f6").opacity(0.5))
 
             Text("Ready to Receive")
                 .font(.title2)
@@ -129,14 +110,21 @@ struct ContentView: View {
 
             Text("Tap to listen for\npayment requests")
                 .font(.body)
-                .foregroundColor(.gray)
+                .foregroundColor(Color(hex: "71717a"))
                 .multilineTextAlignment(.center)
 
             // Name input and emit button
             VStack(spacing: 12) {
                 TextField("Your name", text: $customerName)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .frame(maxWidth: 200)
+                    .padding(14)
+                    .background(Color(hex: "18181b"))
+                    .cornerRadius(10)
+                    .foregroundColor(.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color(hex: "27272a"), lineWidth: 1)
+                    )
+                    .frame(maxWidth: 240)
                     .autocapitalization(.words)
 
                 Button(action: emitName) {
@@ -150,15 +138,15 @@ struct ContentView: View {
                         }
                         Text(isEmittingName ? "Emitting..." : "Emit My Name")
                     }
-                    .frame(maxWidth: 200)
+                    .frame(maxWidth: 240)
                     .padding(.vertical, 12)
                     .background(
                         customerName.isEmpty || isEmittingName
-                            ? Color.gray.opacity(0.3)
-                            : Color(hex: "22c55e")
+                            ? Color(hex: "27272a")
+                            : Color(hex: "10b981")
                     )
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+                    .foregroundColor(customerName.isEmpty || isEmittingName ? Color(hex: "52525b") : .white)
+                    .cornerRadius(10)
                     .fontWeight(.medium)
                 }
                 .disabled(customerName.isEmpty || isEmittingName)
@@ -174,7 +162,7 @@ struct ContentView: View {
             ZStack {
                 ForEach(0..<3) { i in
                     Circle()
-                        .stroke(Color(hex: "6366f1").opacity(0.3), lineWidth: 2)
+                        .stroke(Color(hex: "3b82f6").opacity(0.3), lineWidth: 2)
                         .frame(width: 100 + CGFloat(i * 40), height: 100 + CGFloat(i * 40))
                         .scaleEffect(receiver.isListening ? 1.2 : 1.0)
                         .opacity(receiver.isListening ? 0.5 : 1.0)
@@ -188,7 +176,7 @@ struct ContentView: View {
 
                 Image(systemName: receiver.isReceivingData ? "arrow.down.circle.fill" : "ear.and.waveform")
                     .font(.system(size: 50))
-                    .foregroundColor(receiver.isReceivingData ? Color(hex: "22c55e") : Color(hex: "6366f1"))
+                    .foregroundColor(receiver.isReceivingData ? Color(hex: "10b981") : Color(hex: "3b82f6"))
             }
             .frame(height: 200)
 
@@ -203,17 +191,11 @@ struct ContentView: View {
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(0.1))
+                                .fill(Color(hex: "27272a"))
                                 .frame(height: 8)
 
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color(hex: "6366f1"), Color(hex: "a855f7")],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
+                                .fill(Color(hex: "3b82f6"))
                                 .frame(width: geometry.size.width * CGFloat(min(Double(receiver.bitsReceived) / 16.0, 1.0)), height: 8)
                         }
                     }
@@ -222,7 +204,7 @@ struct ContentView: View {
 
                     Text("\(receiver.bitsReceived) / 16 bits (\(Int(Double(receiver.bitsReceived) / 16.0 * 100))%)")
                         .font(.caption)
-                        .foregroundColor(.gray)
+                        .foregroundColor(Color(hex: "71717a"))
                 }
                 .padding(.vertical, 8)
             }
@@ -231,20 +213,20 @@ struct ContentView: View {
             HStack(spacing: 4) {
                 ForEach(0..<5) { i in
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(i < Int(receiver.signalStrength * 5) ? Color(hex: "22c55e") : Color.gray.opacity(0.3))
+                        .fill(i < Int(receiver.signalStrength * 5) ? Color(hex: "10b981") : Color(hex: "27272a"))
                         .frame(width: 8, height: 12 + CGFloat(i * 4))
                 }
             }
 
             Text("Signal: \(Int(receiver.signalStrength * 100))%")
                 .font(.caption)
-                .foregroundColor(.gray)
+                .foregroundColor(Color(hex: "71717a"))
 
             // Debug info (remove in production)
             if !receiver.debugInfo.isEmpty {
                 Text(receiver.debugInfo)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.gray.opacity(0.6))
+                    .foregroundColor(Color(hex: "52525b"))
                     .padding(.top, 8)
             }
         }
@@ -255,7 +237,7 @@ struct ContentView: View {
         VStack(spacing: 24) {
             ProgressView()
                 .scaleEffect(2)
-                .tint(Color(hex: "6366f1"))
+                .tint(Color(hex: "3b82f6"))
 
             Text("Processing Payment...")
                 .font(.title2)
@@ -269,16 +251,16 @@ struct ContentView: View {
         VStack(spacing: 24) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 80))
-                .foregroundColor(Color(hex: "22c55e"))
+                .foregroundColor(Color(hex: "10b981"))
 
             Text("Payment Sent!")
                 .font(.title)
                 .fontWeight(.bold)
-                .foregroundColor(Color(hex: "22c55e"))
+                .foregroundColor(Color(hex: "10b981"))
 
             Text("Tx: \(txHash.prefix(10))...")
                 .font(.caption)
-                .foregroundColor(.gray)
+                .foregroundColor(Color(hex: "71717a"))
 
             Button("Done") {
                 walletState = receiver.isListening ? .listening : .idle
@@ -301,7 +283,7 @@ struct ContentView: View {
 
             Text(message)
                 .font(.body)
-                .foregroundColor(.gray)
+                .foregroundColor(Color(hex: "71717a"))
                 .multilineTextAlignment(.center)
 
             Button("Try Again") {
@@ -321,17 +303,9 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(
-                Group {
-                    if receiver.isListening {
-                        Color(hex: "ef4444")
-                    } else {
-                        LinearGradient(colors: [Color(hex: "6366f1"), Color(hex: "8b5cf6")], startPoint: .leading, endPoint: .trailing)
-                    }
-                }
-            )
+            .background(receiver.isListening ? Color(hex: "ef4444") : Color(hex: "3b82f6"))
             .foregroundColor(.white)
-            .cornerRadius(16)
+            .cornerRadius(12)
         }
     }
 
@@ -428,7 +402,7 @@ struct PaymentConfirmationView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "0a0a0f").ignoresSafeArea()
+                Color(hex: "09090b").ignoresSafeArea()
 
                 VStack(spacing: 32) {
                     // Merchant info
@@ -436,13 +410,13 @@ struct PaymentConfirmationView: View {
                         // Avatar placeholder
                         ZStack {
                             Circle()
-                                .fill(Color(hex: "6366f1").opacity(0.2))
+                                .fill(Color(hex: "3b82f6").opacity(0.2))
                                 .frame(width: 80, height: 80)
 
                             Text(String(payload.merchant.prefix(2)).uppercased())
                                 .font(.title)
                                 .fontWeight(.bold)
-                                .foregroundColor(Color(hex: "6366f1"))
+                                .foregroundColor(Color(hex: "3b82f6"))
                         }
 
                         VStack(spacing: 4) {
@@ -454,14 +428,14 @@ struct PaymentConfirmationView: View {
                             if let paymentId = payload.paymentId {
                                 Text("ID: \(paymentId.prefix(20))...")
                                     .font(.caption)
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(Color(hex: "71717a"))
                             }
 
                             HStack(spacing: 4) {
                                 Image(systemName: "checkmark.seal.fill")
-                                    .foregroundColor(Color(hex: "22c55e"))
+                                    .foregroundColor(Color(hex: "10b981"))
                                 Text("WalletConnect Pay")
-                                    .foregroundColor(Color(hex: "22c55e"))
+                                    .foregroundColor(Color(hex: "10b981"))
                             }
                             .font(.caption)
                         }
@@ -475,7 +449,7 @@ struct PaymentConfirmationView: View {
 
                         Text("via WalletConnect Pay")
                             .font(.subheadline)
-                            .foregroundColor(.gray)
+                            .foregroundColor(Color(hex: "71717a"))
                     }
 
                     Spacer()
@@ -489,11 +463,9 @@ struct PaymentConfirmationView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(
-                                LinearGradient(colors: [Color(hex: "22c55e"), Color(hex: "16a34a")], startPoint: .leading, endPoint: .trailing)
-                            )
+                            .background(Color(hex: "10b981"))
                             .foregroundColor(.white)
-                            .cornerRadius(16)
+                            .cornerRadius(12)
                             .fontWeight(.semibold)
                         }
 
@@ -501,7 +473,7 @@ struct PaymentConfirmationView: View {
                             Text("Cancel")
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .foregroundColor(.gray)
+                                .foregroundColor(Color(hex: "71717a"))
                         }
                     }
                 }
@@ -525,11 +497,9 @@ struct PrimaryButtonStyle: ButtonStyle {
         configuration.label
             .padding()
             .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(colors: [Color(hex: "6366f1"), Color(hex: "8b5cf6")], startPoint: .leading, endPoint: .trailing)
-            )
+            .background(Color(hex: "3b82f6"))
             .foregroundColor(.white)
-            .cornerRadius(16)
+            .cornerRadius(12)
             .fontWeight(.semibold)
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
     }

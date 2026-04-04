@@ -74,22 +74,28 @@ function Listener() {
   }
 
   // Transmit customer identity
-  const playTone = useCallback((frequency: number, duration: number): Promise<void> => {
-    return new Promise((resolve) => {
-      if (!txAudioContextRef.current) {
-        txAudioContextRef.current = new AudioContext({ sampleRate: 48000 })
-      }
-      const ctx = txAudioContextRef.current
+  const playTone = useCallback(async (frequency: number, duration: number): Promise<void> => {
+    if (!txAudioContextRef.current) {
+      txAudioContextRef.current = new AudioContext({ sampleRate: 48000 })
+    }
+    const ctx = txAudioContextRef.current
 
+    // Resume AudioContext if suspended (required on iOS)
+    if (ctx.state === 'suspended') {
+      await ctx.resume()
+    }
+
+    return new Promise((resolve) => {
       const oscillator = ctx.createOscillator()
       const gainNode = ctx.createGain()
 
       oscillator.type = 'sine'
       oscillator.frequency.setValueAtTime(frequency, ctx.currentTime)
 
+      // Max gain for phone speakers
       gainNode.gain.setValueAtTime(0, ctx.currentTime)
-      gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.01)
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime + duration / 1000 - 0.01)
+      gainNode.gain.linearRampToValueAtTime(1.0, ctx.currentTime + 0.01)
+      gainNode.gain.setValueAtTime(1.0, ctx.currentTime + duration / 1000 - 0.01)
       gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + duration / 1000)
 
       oscillator.connect(gainNode)
@@ -498,7 +504,7 @@ function Listener() {
   return (
     <div className="app">
       <header className="header">
-        <h1>SonicPay</h1>
+        <h1>👀 dontlook.fyi</h1>
         <div className="merchant-info">
           <span className="merchant-name">Wallet</span>
           <span className={`status-dot ${isListening ? 'ready' : 'loading'}`} />

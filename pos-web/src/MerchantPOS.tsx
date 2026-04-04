@@ -34,7 +34,7 @@ let audioContext: AudioContext | null = null;
 
 function MerchantPOS() {
   const [amount, setAmount] = useState('')
-  const [merchantName] = useState('SonicPay Demo')
+  const [merchantName] = useState(import.meta.env.VITE_MERCHANT_NAME || 'dontlook.fyi')
   const [audioReady, setAudioReady] = useState(false)
   const [status, setStatus] = useState<'idle' | 'creating' | 'transmitting' | 'waiting' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
@@ -148,7 +148,7 @@ function MerchantPOS() {
 
     const sampleRate = rxAudioContextRef.current?.sampleRate || 48000;
     const binSize = sampleRate / (bufferLength * 2);
-    const lowBin = Math.floor(17500 / binSize);  // Customer broadcasts at 18-19kHz (same as payment)
+    const lowBin = Math.floor(17500 / binSize);
     const highBin = Math.ceil(19500 / binSize);
 
     let maxValue = -Infinity;
@@ -168,20 +168,13 @@ function MerchantPOS() {
     const isOne = isFrequency(dominantFreq, RX_FREQ_ONE);
     const isDataFreq = isZero || isOne;
 
-    // Debug: show what we're detecting (always visible)
+    // Debug display
     const match = isPreamble ? 'P' : (isZero ? '0' : (isOne ? '1' : '-'));
     const state = rxDecodingStateRef.current === 'waitingForPreamble' ? 'WAIT' : (rxWaitingFirstBitRef.current ? 'SYNC' : 'RX');
-    const debugStr = `${Math.round(dominantFreq)}Hz [${match}] E:${energy.toFixed(2)} ${state} bits:${rxBitsRef.current.length}/24`;
-    setCustomerDebug(debugStr);
+    setCustomerDebug(`${Math.round(dominantFreq)}Hz [${match}] E:${energy.toFixed(2)} ${state} bits:${rxBitsRef.current.length}/24`);
 
-    // Log every 60 frames (~1 second) to avoid spam
-    if (Math.random() < 0.017) {
-      console.log('Customer RX:', debugStr);
-    }
-
-    // Need minimum energy to avoid noise - but lower threshold once we're receiving
-    const isReceiving = rxDecodingStateRef.current === 'receivingData';
-    const minEnergy = isReceiving ? 0.01 : 0.03;  // Higher threshold to START, lower to CONTINUE
+    // Need minimum energy
+    const minEnergy = rxDecodingStateRef.current === 'receivingData' ? 0.01 : 0.03;
     if (energy < minEnergy) {
       rxAnimationFrameRef.current = requestAnimationFrame(analyzeCustomerAudio);
       return;
@@ -190,9 +183,8 @@ function MerchantPOS() {
     if (rxDecodingStateRef.current === 'waitingForPreamble') {
       if (isPreamble) {
         rxPreambleCountRef.current++;
-        // Customer broadcasts use 5 preambles - trigger on 4+ (no upper bound)
         if (rxPreambleCountRef.current >= 4) {
-          console.log('Customer preamble detected! Waiting for data...');
+          console.log('Customer preamble detected!');
           rxDecodingStateRef.current = 'receivingData';
           rxBitsRef.current = [];
           rxSamplesRef.current = [];
@@ -205,9 +197,10 @@ function MerchantPOS() {
         rxPreambleCountRef.current = Math.max(0, rxPreambleCountRef.current - 1);
       }
     } else {
+      // Receiving data
       if (rxWaitingFirstBitRef.current) {
         if (isDataFreq) {
-          console.log('First data bit found! Starting bit reception...');
+          console.log('First customer data bit detected');
           rxStartTimeRef.current = performance.now();
           rxSamplesRef.current = [dominantFreq];
           rxBitIndexRef.current = 0;
@@ -221,14 +214,15 @@ function MerchantPOS() {
       const expectedBitIndex = Math.floor(elapsedMs / RX_BIT_WINDOW_MS);
       const timeInCurrentBit = elapsedMs % RX_BIT_WINDOW_MS;
 
-      // Timeout - reset if taking too long
+      // Timeout after 15 seconds
       if (elapsedMs > RX_TIMEOUT_MS) {
-        console.log('RX timeout, resetting');
+        console.log('Customer RX timeout');
         resetRxDecoder();
         rxAnimationFrameRef.current = requestAnimationFrame(analyzeCustomerAudio);
         return;
       }
 
+      // Record completed bits
       if (expectedBitIndex > rxBitIndexRef.current) {
         while (rxBitIndexRef.current < expectedBitIndex && rxSamplesRef.current.length > 0) {
           const avgFreq = rxSamplesRef.current.reduce((a, b) => a + b, 0) / rxSamplesRef.current.length;
@@ -240,50 +234,32 @@ function MerchantPOS() {
         rxBitIndexRef.current = expectedBitIndex;
       }
 
-      // End marker detection: need 20+ consecutive preambles AND 20+ bits (customer broadcast is 24 bits)
-      if (isPreamble) {
+      // End marker detection - customer sends 5 end preambles
+      // At ~60fps, 5 tones × 250ms = ~75 frames, but we detect after ~10 consecutive
+      if (isPreamble && rxBitsRef.current.length >= 16) {
         rxPreambleCountRef.current++;
-        if (rxPreambleCountRef.current >= 20 && rxBitsRef.current.length >= 20) {
-          console.log('End marker detected with', rxBitsRef.current.length, 'bits');
+        // Process after seeing ~10 consecutive preamble frames (covers ~2 preamble tones)
+        if (rxPreambleCountRef.current >= 10) {
+          console.log('Customer end marker detected with', rxBitsRef.current.length, 'bits');
+          // Finalize pending bit
           if (rxSamplesRef.current.length > 0) {
             const avgFreq = rxSamplesRef.current.reduce((a, b) => a + b, 0) / rxSamplesRef.current.length;
             const bit = isFrequency(avgFreq, RX_FREQ_ONE) ? '1' : '0';
             rxBitsRef.current.push(bit);
           }
+          // Trim to byte boundary and process
           const validBits = Math.floor(rxBitsRef.current.length / 8) * 8;
           rxBitsRef.current = rxBitsRef.current.slice(0, validBits);
           processCustomerBroadcast();
           rxAnimationFrameRef.current = requestAnimationFrame(analyzeCustomerAudio);
           return;
         }
-      } else {
-        // Only reset preamble count if we see a data frequency (not random noise)
-        if (isDataFreq) {
-          rxPreambleCountRef.current = 0;
-        }
-      }
-
-      // Sample data frequencies during tone portion
-      if (timeInCurrentBit < RX_SAMPLE_WINDOW_MS && isDataFreq) {
-        rxSamplesRef.current.push(dominantFreq);
-      }
-
-      // If we see many consecutive preambles during data reception, probably end marker
-      // End marker is 5 tones at 250ms each. At 60fps = ~75 frames
-      // Use 20 frames threshold to avoid false triggers during data gaps
-      if (isPreamble) {
-        rxPreambleCountRef.current++;
-        if (rxPreambleCountRef.current > 25 && rxBitsRef.current.length >= 20) {
-          // Treat as end marker - require at least 20 bits to avoid early termination
-          console.log('Detected end marker (preamble during data), processing', rxBitsRef.current.length, 'bits');
-          const validBits = Math.floor(rxBitsRef.current.length / 8) * 8;
-          rxBitsRef.current = rxBitsRef.current.slice(0, validBits);
-          processCustomerBroadcast();
-          rxAnimationFrameRef.current = requestAnimationFrame(analyzeCustomerAudio);
-          return;
-        }
-      } else {
+      } else if (isDataFreq) {
         rxPreambleCountRef.current = 0;
+        // Sample during tone portion
+        if (timeInCurrentBit < RX_SAMPLE_WINDOW_MS) {
+          rxSamplesRef.current.push(dominantFreq);
+        }
       }
     }
 
@@ -319,7 +295,9 @@ function MerchantPOS() {
   const stopCustomerDetection = useCallback(() => {
     if (rxAnimationFrameRef.current) cancelAnimationFrame(rxAnimationFrameRef.current);
     if (rxStreamRef.current) rxStreamRef.current.getTracks().forEach(track => track.stop());
-    if (rxAudioContextRef.current) rxAudioContextRef.current.close();
+    if (rxAudioContextRef.current && rxAudioContextRef.current.state !== 'closed') {
+      rxAudioContextRef.current.close();
+    }
   }, []);
 
   // Customer detection only when on idle screen
@@ -527,7 +505,7 @@ function MerchantPOS() {
   return (
     <div className="app">
       <header className="header">
-        <h1>SonicPay POS</h1>
+        <h1>👀 dontlook.fyi</h1>
         <div className="merchant-info">
           <span className="merchant-name">{merchantName}</span>
           <span className={`status-dot ${audioReady ? 'ready' : 'loading'}`} />
@@ -538,22 +516,17 @@ function MerchantPOS() {
         {status === 'idle' && (
           <>
             {detectedCustomer && (
-              <div className="customer-detected" style={{
-                background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                borderRadius: '12px',
-                padding: '12px 20px',
-                marginBottom: '16px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '12px', color: '#22c55e', marginBottom: '4px' }}>Customer Detected</div>
-                <div style={{ fontSize: '18px', fontWeight: '600', color: '#fff' }}>{detectedCustomer}</div>
+              <div className="customer-detected">
+                <div className="label">Customer Detected</div>
+                <div className="name">{detectedCustomer}</div>
               </div>
             )}
 
-            <div style={{ fontSize: '12px', color: '#888', fontFamily: 'monospace', marginBottom: '8px', padding: '8px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
-              Customer RX: {customerDebug || 'Initializing...'}
-            </div>
+            {customerDebug && (
+              <div className="frequency-info" style={{ marginBottom: '8px' }}>
+                {customerDebug}
+              </div>
+            )}
 
             <div className="amount-display">
               <span className="currency-symbol">$</span>
