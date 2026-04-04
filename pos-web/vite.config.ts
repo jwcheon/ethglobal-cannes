@@ -16,8 +16,14 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
-      // Proxy WalletConnect Pay calls
+      // Proxy WalletConnect Pay calls (Merchant API)
       '/wcpay': {
+        target: API_SERVER,
+        changeOrigin: true,
+        secure: true,
+      },
+      // Proxy WalletConnect Gateway calls (for merchant info)
+      '/wcgateway': {
         target: API_SERVER,
         changeOrigin: true,
         secure: true,

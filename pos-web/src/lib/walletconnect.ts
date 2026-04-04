@@ -167,3 +167,71 @@ export function extractPaymentId(gatewayUrl: string): string {
   }
   throw new Error('Invalid gateway URL format');
 }
+
+// Gateway API for getting payment options and merchant info
+const WC_GATEWAY_URL = '/wcgateway';
+
+interface PaymentOptionsResponse {
+  options: Array<{
+    id: string;
+    amount: {
+      value: string;
+      unit: string;
+    };
+  }>;
+  info?: {
+    merchant: {
+      name: string;
+    };
+    amount: {
+      value: string;
+      display?: {
+        assetSymbol?: string;
+      };
+    };
+    expiresAt?: string;
+  };
+}
+
+// Get payment options and merchant info from Gateway API
+export async function getPaymentInfo(paymentId: string): Promise<PaymentOptionsResponse> {
+  // Use a dummy account to get payment info
+  const dummyAccount = 'eip155:8453:0x0000000000000000000000000000000000000000';
+
+  console.log('Fetching payment info from Gateway API for:', paymentId);
+
+  const response = await fetch(`${WC_GATEWAY_URL}/v1/gateway/payment/${paymentId}/options`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      accounts: [dummyAccount],
+      includePaymentInfo: true,
+    }),
+  });
+
+  const responseText = await response.text();
+  console.log('Gateway API response:', response.status, responseText);
+
+  if (!response.ok) {
+    throw new Error(`Gateway API error: ${response.status} - ${responseText}`);
+  }
+
+  const data = JSON.parse(responseText);
+  console.log('Gateway API parsed data:', data);
+  console.log('Merchant info:', data.info);
+
+  return data;
+}
+
+// Get just the merchant name
+export async function getMerchantName(paymentId: string): Promise<string | null> {
+  try {
+    const info = await getPaymentInfo(paymentId);
+    return info.info?.merchant?.name || null;
+  } catch (err) {
+    console.error('Failed to get merchant name:', err);
+    return null;
+  }
+}

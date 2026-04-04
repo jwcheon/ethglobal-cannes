@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import './App.css'
+import { getMerchantName } from './lib/walletconnect'
 
 interface PaymentInfo {
   paymentId: string
@@ -297,11 +298,23 @@ function Listener() {
       const data = await response.json()
       console.log('Payment found:', data)
 
+      // Try to get real merchant name from WalletConnect Gateway API
+      let merchantName = data.merchant || 'Merchant'
+      try {
+        const realMerchantName = await getMerchantName(data.paymentId)
+        if (realMerchantName) {
+          merchantName = realMerchantName
+          console.log('Got real merchant name:', realMerchantName)
+        }
+      } catch (err) {
+        console.log('Could not fetch merchant name from Gateway, using stored:', merchantName)
+      }
+
       setPayment({
         paymentId: data.paymentId,
         gatewayUrl: data.gatewayUrl,
         amount: data.amount,
-        merchant: data.merchant || 'Merchant'
+        merchant: merchantName
       })
       setStatus('received')
       hasTriggeredRef.current = true
