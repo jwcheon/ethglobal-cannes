@@ -546,7 +546,7 @@ class UltrasonicReceiver: ObservableObject {
     //   cd pos-web && npm run tunnel (in terminal 2)
     //   Copy the https://xxx.trycloudflare.com URL
     //
-    private let posServerURL = "https://hood-cart-del-gifts.trycloudflare.com"
+    private let posServerURL = "https://sonicpay-pos.pages.dev"
 
     // MARK: - Data Processing
     private func processReceivedData() {

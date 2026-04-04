@@ -24,8 +24,8 @@ const FREQ_TOLERANCE = 200
 const BIT_WINDOW_MS = 300
 const SAMPLE_WINDOW_MS = 150
 
-// Customer broadcast settings
-const BROADCAST_INTERVAL_MS = 5000 // Broadcast code every 5 seconds
+// Customer broadcast settings (unused but kept for reference)
+// const BROADCAST_INTERVAL_MS = 5000
 
 // Generate 2-char short code for quick demo
 function generateCustomerCode(): string {
@@ -56,7 +56,6 @@ function Listener() {
   const animationFrameRef = useRef<number | null>(null)
   const txAudioContextRef = useRef<AudioContext | null>(null)
   const broadcastIntervalRef = useRef<number | null>(null)
-  const [isBroadcasting, setIsBroadcasting] = useState(false)
   const [isEmittingName, setIsEmittingName] = useState(false)
 
   // Decoding state
@@ -120,36 +119,6 @@ function Listener() {
       console.error('Failed to store customer mapping:', err)
     }
   }, [])
-
-  const broadcastIdentity = useCallback(async () => {
-    const code = customerCodeRef.current
-    if (!code) return
-
-    // Prefix with "~" to identify as customer broadcast
-    const data = `~${code}` // ~ABC = 4 chars = 32 bits
-    const binary = stringToBinary(data)
-    console.log('Broadcasting customer code:', data, 'binary:', binary)
-
-    // Preamble - 10 tones (same as payment)
-    for (let i = 0; i < 10; i++) {
-      await playTone(TX_FREQ_PREAMBLE, 250)
-    }
-
-    // Gap before data
-    await new Promise(r => setTimeout(r, 100))
-
-    // Data bits - 200ms tone + 100ms gap = 300ms per bit (same as payment)
-    for (const bit of binary) {
-      const freq = bit === '1' ? TX_FREQ_ONE : TX_FREQ_ZERO
-      await playTone(freq, 200)
-      await new Promise(r => setTimeout(r, 100))
-    }
-
-    // End marker - 5 tones
-    for (let i = 0; i < 5; i++) {
-      await playTone(TX_FREQ_PREAMBLE, 250)
-    }
-  }, [playTone])
 
   // Save customer name to localStorage
   useEffect(() => {
@@ -446,11 +415,10 @@ function Listener() {
 
   const startListening = useCallback(async () => {
     try {
-      // Stop broadcasting while listening
+      // Stop any ongoing broadcast
       if (broadcastIntervalRef.current) {
         clearInterval(broadcastIntervalRef.current)
         broadcastIntervalRef.current = null
-        setIsBroadcasting(false)
       }
 
       // Start listening for payments

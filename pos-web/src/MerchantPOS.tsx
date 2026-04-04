@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
-import { createPayment, extractPaymentId, getPaymentStatus } from './lib/walletconnect'
+import { createPayment, getPaymentStatus } from './lib/walletconnect'
 
 interface PaymentPayload {
   merchant: string;

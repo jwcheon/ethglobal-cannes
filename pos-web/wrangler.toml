@@ -1,0 +1,13 @@
+name = "sonicpay-pos"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"
+
+# account_id used for KV creation: fc33a308338de96c358c321ee431c110
+
+[[kv_namespaces]]
+binding = "PAYMENTS"
+id = "eb4385fe26a84c7c975cfa0c235d0d41"
+
+[[kv_namespaces]]
+binding = "CUSTOMERS"
+id = "5b33afda740e4bc892a93966e6612df0"
