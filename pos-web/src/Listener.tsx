@@ -27,11 +27,11 @@ const SAMPLE_WINDOW_MS = 150
 // Customer broadcast settings
 const BROADCAST_INTERVAL_MS = 5000 // Broadcast code every 5 seconds
 
-// Generate 3-char short code
+// Generate 2-char short code for quick demo
 function generateCustomerCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;
@@ -57,6 +57,7 @@ function Listener() {
   const txAudioContextRef = useRef<AudioContext | null>(null)
   const broadcastIntervalRef = useRef<number | null>(null)
   const [isBroadcasting, setIsBroadcasting] = useState(false)
+  const [isEmittingName, setIsEmittingName] = useState(false)
 
   // Decoding state
   const decodingStateRef = useRef<'waitingForPreamble' | 'receivingData'>('waitingForPreamble')
@@ -156,6 +157,44 @@ function Listener() {
       localStorage.setItem('customerName', customerName)
     }
   }, [customerName])
+
+  // Emit name once when button is pressed
+  const emitNameOnce = useCallback(async () => {
+    if (!customerName.trim()) return
+    setIsEmittingName(true)
+
+    // Generate code and store mapping
+    const code = generateCustomerCode()
+    setCustomerCode(code)
+    customerCodeRef.current = code
+    await storeCustomerMapping(code, customerName.trim())
+
+    // Transmit: ~XX (3 chars = 24 bits)
+    const data = `~${code}`
+    const binary = stringToBinary(data)
+    console.log(`Emitting customer code: ${data} for name: ${customerName}`)
+
+    // Preamble - 10 tones
+    for (let i = 0; i < 10; i++) {
+      await playTone(TX_FREQ_PREAMBLE, 250)
+    }
+    await new Promise(r => setTimeout(r, 100))
+
+    // Data bits - 200ms tone + 100ms gap
+    for (const bit of binary) {
+      const freq = bit === '1' ? TX_FREQ_ONE : TX_FREQ_ZERO
+      await playTone(freq, 200)
+      await new Promise(r => setTimeout(r, 100))
+    }
+
+    // End marker - 5 tones
+    for (let i = 0; i < 5; i++) {
+      await playTone(TX_FREQ_PREAMBLE, 250)
+    }
+
+    console.log('Finished emitting customer code')
+    setIsEmittingName(false)
+  }, [customerName, playTone, storeCustomerMapping])
 
   // Customer broadcasting disabled for now - focusing on receiving payments
   /*
@@ -508,6 +547,54 @@ function Listener() {
             </div>
             <h2>Ready to Receive</h2>
             <p className="frequency-info">Tap to listen for payment requests</p>
+
+            <div style={{ margin: '20px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <input
+                type="text"
+                placeholder="Your name"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: 'white',
+                  fontSize: '16px',
+                  width: '200px',
+                  textAlign: 'center'
+                }}
+              />
+              <button
+                onClick={emitNameOnce}
+                disabled={!customerName.trim() || isEmittingName}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: !customerName.trim() || isEmittingName ? 'rgba(255,255,255,0.2)' : '#22c55e',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: !customerName.trim() || isEmittingName ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {isEmittingName ? (
+                  <>
+                    <span className="spinner" style={{ width: '16px', height: '16px' }} />
+                    Emitting...
+                  </>
+                ) : (
+                  <>
+                    <span>👋</span>
+                    Emit My Name
+                  </>
+                )}
+              </button>
+            </div>
 
             <button className="charge-btn" onClick={startListening}>
               Start Listening

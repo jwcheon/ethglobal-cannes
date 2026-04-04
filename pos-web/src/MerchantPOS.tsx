@@ -59,9 +59,6 @@ function MerchantPOS() {
 
   useEffect(() => {
     setAudioReady(true);
-    // Customer detection disabled for now - focusing on merchant broadcast
-    // startCustomerDetection();
-    // return () => stopCustomerDetection();
   }, []);
 
   // FSK frequencies for TRANSMITTING payments (18-19kHz range)
@@ -134,7 +131,7 @@ function MerchantPOS() {
     // Check if it's a customer broadcast (starts with ~)
     if (decoded && decoded.startsWith('~')) {
       const code = decoded.slice(1).trim().toUpperCase();
-      if (code && code.length >= 3) {
+      if (code && code.length >= 2) {
         lookupCustomer(code);
       }
     }
@@ -174,7 +171,13 @@ function MerchantPOS() {
     // Debug: show what we're detecting (always visible)
     const match = isPreamble ? 'P' : (isZero ? '0' : (isOne ? '1' : '-'));
     const state = rxDecodingStateRef.current === 'waitingForPreamble' ? 'WAIT' : (rxWaitingFirstBitRef.current ? 'SYNC' : 'RX');
-    setCustomerDebug(`${Math.round(dominantFreq)}Hz [${match}] ${state} bits:${rxBitsRef.current.length}/16`);
+    const debugStr = `${Math.round(dominantFreq)}Hz [${match}] E:${energy.toFixed(2)} ${state} bits:${rxBitsRef.current.length}/24`;
+    setCustomerDebug(debugStr);
+
+    // Log every 60 frames (~1 second) to avoid spam
+    if (Math.random() < 0.017) {
+      console.log('Customer RX:', debugStr);
+    }
 
     // Need minimum energy to avoid noise - but lower threshold once we're receiving
     const isReceiving = rxDecodingStateRef.current === 'receivingData';
@@ -237,10 +240,10 @@ function MerchantPOS() {
         rxBitIndexRef.current = expectedBitIndex;
       }
 
-      // End marker detection: need 20+ consecutive preambles AND 28+ bits (almost complete)
+      // End marker detection: need 20+ consecutive preambles AND 20+ bits (customer broadcast is 24 bits)
       if (isPreamble) {
         rxPreambleCountRef.current++;
-        if (rxPreambleCountRef.current >= 20 && rxBitsRef.current.length >= 28) {
+        if (rxPreambleCountRef.current >= 20 && rxBitsRef.current.length >= 20) {
           console.log('End marker detected with', rxBitsRef.current.length, 'bits');
           if (rxSamplesRef.current.length > 0) {
             const avgFreq = rxSamplesRef.current.reduce((a, b) => a + b, 0) / rxSamplesRef.current.length;
@@ -266,12 +269,12 @@ function MerchantPOS() {
       }
 
       // If we see many consecutive preambles during data reception, probably end marker
-      // End marker is 3 tones at 150ms each = 450ms. At 60fps = ~27 frames
+      // End marker is 5 tones at 250ms each. At 60fps = ~75 frames
       // Use 20 frames threshold to avoid false triggers during data gaps
       if (isPreamble) {
         rxPreambleCountRef.current++;
-        if (rxPreambleCountRef.current > 25 && rxBitsRef.current.length >= 24) {
-          // Treat as end marker - require at least 24 bits (3 chars) to avoid early termination
+        if (rxPreambleCountRef.current > 25 && rxBitsRef.current.length >= 20) {
+          // Treat as end marker - require at least 20 bits to avoid early termination
           console.log('Detected end marker (preamble during data), processing', rxBitsRef.current.length, 'bits');
           const validBits = Math.floor(rxBitsRef.current.length / 8) * 8;
           rxBitsRef.current = rxBitsRef.current.slice(0, validBits);
@@ -307,7 +310,7 @@ function MerchantPOS() {
 
       resetRxDecoder();
       rxAnimationFrameRef.current = requestAnimationFrame(analyzeCustomerAudio);
-      console.log('Customer detection started, listening on 19.5-20.5kHz');
+      console.log('Customer detection started, listening on 18-19kHz');
     } catch (err) {
       console.log('Customer detection not available:', err);
     }
@@ -318,6 +321,16 @@ function MerchantPOS() {
     if (rxStreamRef.current) rxStreamRef.current.getTracks().forEach(track => track.stop());
     if (rxAudioContextRef.current) rxAudioContextRef.current.close();
   }, []);
+
+  // Customer detection only when on idle screen
+  useEffect(() => {
+    if (status === 'idle') {
+      startCustomerDetection();
+      return () => stopCustomerDetection();
+    } else {
+      stopCustomerDetection();
+    }
+  }, [status, startCustomerDetection, stopCustomerDetection]);
 
   // Clear customer after 10 seconds of no signal
   useEffect(() => {
@@ -524,20 +537,23 @@ function MerchantPOS() {
       <main className="main">
         {status === 'idle' && (
           <>
-            {/* Customer detection disabled for now
             {detectedCustomer && (
-              <div className="customer-detected">
-                <div className="label">Customer Detected</div>
-                <div className="name">{detectedCustomer}</div>
+              <div className="customer-detected" style={{
+                background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1))',
+                border: '1px solid rgba(34, 197, 94, 0.3)',
+                borderRadius: '12px',
+                padding: '12px 20px',
+                marginBottom: '16px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '12px', color: '#22c55e', marginBottom: '4px' }}>Customer Detected</div>
+                <div style={{ fontSize: '18px', fontWeight: '600', color: '#fff' }}>{detectedCustomer}</div>
               </div>
             )}
 
-            {customerDebug && (
-              <div style={{ fontSize: '10px', color: '#666', fontFamily: 'monospace', marginBottom: '8px' }}>
-                Customer RX: {customerDebug}
-              </div>
-            )}
-            */}
+            <div style={{ fontSize: '12px', color: '#888', fontFamily: 'monospace', marginBottom: '8px', padding: '8px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px' }}>
+              Customer RX: {customerDebug || 'Initializing...'}
+            </div>
 
             <div className="amount-display">
               <span className="currency-symbol">$</span>

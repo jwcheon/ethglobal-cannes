@@ -162,7 +162,37 @@ class UltrasonicReceiver: ObservableObject {
     // MARK: - Customer Broadcasting
     private func generateCustomerCode() -> String {
         let chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-        return String((0..<3).map { _ in chars.randomElement()! })
+        return String((0..<2).map { _ in chars.randomElement()! })  // 2 chars for quick demo
+    }
+
+    /// Emit customer name once (called from UI)
+    func emitNameOnce(name: String) async {
+        let code = generateCustomerCode()
+        storeCustomerMapping(code: code, name: name)
+
+        let data = "~\(code)" // ~AB = 3 chars = 24 bits
+        print("Emitting customer code: \(data) for name: \(name)")
+
+        // Preamble - 10 tones
+        for _ in 0..<10 {
+            await playTone(frequency: TX_FREQ_PREAMBLE, duration: 0.25)
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms gap
+
+        // Data bits - 200ms tone + 100ms gap = 300ms per bit
+        let binary = stringToBinary(data)
+        for bit in binary {
+            let freq = bit == "1" ? TX_FREQ_ONE : TX_FREQ_ZERO
+            await playTone(frequency: freq, duration: 0.20)
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms gap
+        }
+
+        // End marker - 5 tones
+        for _ in 0..<5 {
+            await playTone(frequency: TX_FREQ_PREAMBLE, duration: 0.25)
+        }
+
+        print("Finished emitting customer code")
     }
 
     private func storeCustomerMapping(code: String, name: String) {

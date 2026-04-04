@@ -4,6 +4,8 @@ struct ContentView: View {
     @StateObject private var receiver = UltrasonicReceiver()
     @State private var walletState: WalletState = .idle
     @State private var showPaymentSheet = false
+    @State private var customerName: String = ""
+    @State private var isEmittingName: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -129,6 +131,39 @@ struct ContentView: View {
                 .font(.body)
                 .foregroundColor(.gray)
                 .multilineTextAlignment(.center)
+
+            // Name input and emit button
+            VStack(spacing: 12) {
+                TextField("Your name", text: $customerName)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .frame(maxWidth: 200)
+                    .autocapitalization(.words)
+
+                Button(action: emitName) {
+                    HStack(spacing: 8) {
+                        if isEmittingName {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "person.wave.2")
+                        }
+                        Text(isEmittingName ? "Emitting..." : "Emit My Name")
+                    }
+                    .frame(maxWidth: 200)
+                    .padding(.vertical, 12)
+                    .background(
+                        customerName.isEmpty || isEmittingName
+                            ? Color.gray.opacity(0.3)
+                            : Color(hex: "22c55e")
+                    )
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                    .fontWeight(.medium)
+                }
+                .disabled(customerName.isEmpty || isEmittingName)
+            }
+            .padding(.top, 16)
         }
     }
 
@@ -308,6 +343,19 @@ struct ContentView: View {
         } else {
             receiver.start()
             walletState = .listening
+        }
+    }
+
+    private func emitName() {
+        guard !customerName.isEmpty else { return }
+        isEmittingName = true
+
+        // Emit name once via receiver
+        Task {
+            await receiver.emitNameOnce(name: customerName)
+            await MainActor.run {
+                isEmittingName = false
+            }
         }
     }
 
