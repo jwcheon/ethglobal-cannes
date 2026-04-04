@@ -423,3 +423,68 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* Signal Bars */
+.signal-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  margin: 16px 0;
+}
+
+.signal-bar {
+  width: 8px;
+  background: var(--border);
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+
+.signal-bar.active {
+  background: var(--success);
+}
+
+/* Name Input */
+.name-input {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  font-size: 18px;
+  color: var(--text-primary);
+  text-align: center;
+  width: 100%;
+  max-width: 280px;
+  margin: 16px 0;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.name-input:focus {
+  border-color: var(--accent);
+}
+
+.name-input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Customer Detected */
+.customer-detected {
+  background: linear-gradient(135deg, var(--accent), #a855f7);
+  padding: 16px 24px;
+  border-radius: 12px;
+  margin: 16px 0;
+  text-align: center;
+}
+
+.customer-detected .label {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.customer-detected .name {
+  font-size: 24px;
+  font-weight: 600;
+}

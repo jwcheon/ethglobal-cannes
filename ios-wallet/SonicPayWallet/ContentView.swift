@@ -48,6 +48,12 @@ struct ContentView: View {
                 handlePaymentRequest(payload)
             }
         }
+        // Customer broadcasting disabled for now
+        // .onAppear {
+        //     if !customerName.isEmpty {
+        //         receiver.startBackgroundBroadcasting(name: customerName)
+        //     }
+        // }
     }
 
     // MARK: - Header View
@@ -119,7 +125,7 @@ struct ContentView: View {
                 .fontWeight(.medium)
                 .foregroundColor(.white)
 
-            Text("Enable listening to detect\nnearby payment requests")
+            Text("Tap to listen for\npayment requests")
                 .font(.body)
                 .foregroundColor(.gray)
                 .multilineTextAlignment(.center)
@@ -145,16 +151,46 @@ struct ContentView: View {
                         )
                 }
 
-                Image(systemName: "ear.and.waveform")
+                Image(systemName: receiver.isReceivingData ? "arrow.down.circle.fill" : "ear.and.waveform")
                     .font(.system(size: 50))
-                    .foregroundColor(Color(hex: "6366f1"))
+                    .foregroundColor(receiver.isReceivingData ? Color(hex: "22c55e") : Color(hex: "6366f1"))
             }
             .frame(height: 200)
 
-            Text("Listening...")
+            Text(receiver.isReceivingData ? "Receiving Payment..." : "Listening...")
                 .font(.title2)
                 .fontWeight(.medium)
                 .foregroundColor(.white)
+
+            // Progress bar when receiving data
+            if receiver.isReceivingData {
+                VStack(spacing: 8) {
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white.opacity(0.1))
+                                .frame(height: 8)
+
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color(hex: "6366f1"), Color(hex: "a855f7")],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: geometry.size.width * CGFloat(min(Double(receiver.bitsReceived) / 16.0, 1.0)), height: 8)
+                        }
+                    }
+                    .frame(height: 8)
+                    .frame(maxWidth: 250)
+
+                    Text("\(receiver.bitsReceived) / 16 bits (\(Int(Double(receiver.bitsReceived) / 16.0 * 100))%)")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                .padding(.vertical, 8)
+            }
 
             // Signal strength indicator
             HStack(spacing: 4) {

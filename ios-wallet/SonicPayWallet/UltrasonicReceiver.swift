@@ -11,17 +11,29 @@ class UltrasonicReceiver: ObservableObject {
     @Published var lastReceivedPayload: PaymentPayload?
     @Published var signalStrength: Float = 0
     @Published var debugInfo: String = ""
+    @Published var bitsReceived: Int = 0
+    @Published var isReceivingData: Bool = false
 
     // MARK: - Audio Properties
     private var audioEngine: AVAudioEngine?
     private let sampleRate: Double = 48000
     private let bufferSize: AVAudioFrameCount = 2048
 
-    // FSK Frequencies - MUST match transmitter exactly
-    private let FREQ_PREAMBLE: Float = 18000
-    private let FREQ_ZERO: Float = 18500
-    private let FREQ_ONE: Float = 19000
-    private let FREQ_TOLERANCE: Float = 200  // +/- Hz tolerance (reduced to avoid overlap)
+    // FSK Frequencies for RECEIVING merchant payments (18-19kHz)
+    private let RX_FREQ_PREAMBLE: Float = 18000
+    private let RX_FREQ_ZERO: Float = 18500
+    private let RX_FREQ_ONE: Float = 19000
+
+    // FSK Frequencies for TRANSMITTING customer identity (same as payment for better transmission)
+    private let TX_FREQ_PREAMBLE: Float = 18000
+    private let TX_FREQ_ZERO: Float = 18500
+    private let TX_FREQ_ONE: Float = 19000
+
+    private let FREQ_TOLERANCE: Float = 200
+
+    // Customer broadcasting
+    private var customerCode: String?
+    @Published var isBroadcasting = false
 
     // FFT setup
     private let fftLog2n: vDSP_Length = 11 // 2^11 = 2048
@@ -40,8 +52,8 @@ class UltrasonicReceiver: ObservableObject {
     private var silenceCount = 0
     private var waitingForFirstDataBit = true  // Sync flag
     private var currentBitIndex = 0  // Which bit we're currently receiving
-    private let BIT_WINDOW_MS: Double = 300  // Total time per bit (250ms tone + 50ms gap)
-    private let SAMPLE_WINDOW_MS: Double = 250  // Only sample during the tone portion
+    private let BIT_WINDOW_MS: Double = 300  // Total time per bit (200ms tone + 100ms gap)
+    private let SAMPLE_WINDOW_MS: Double = 150  // Sample during the tone portion
 
     private enum DecodingState {
         case waitingForPreamble
@@ -69,10 +81,51 @@ class UltrasonicReceiver: ObservableObject {
         try session.setActive(true)
     }
 
+    // MARK: - Background Broadcasting (while idle)
+    private var broadcastTask: Task<Void, Never>?
+
+    func startBackgroundBroadcasting(name: String) {
+        guard !isBroadcasting else { return }
+
+        // Generate code and store mapping
+        let code = generateCustomerCode()
+        customerCode = code
+        storeCustomerMapping(code: code, name: name)
+
+        DispatchQueue.main.async {
+            self.isBroadcasting = true
+        }
+
+        // Start periodic broadcasting
+        broadcastTask = Task {
+            while !Task.isCancelled {
+                await broadcastIdentity()
+                try? await Task.sleep(nanoseconds: 15_000_000_000) // 15s between broadcasts
+            }
+        }
+
+        print("Started background broadcasting as: \(name) (code: \(code))")
+    }
+
+    func stopBackgroundBroadcasting() {
+        broadcastTask?.cancel()
+        broadcastTask = nil
+        DispatchQueue.main.async {
+            self.isBroadcasting = false
+        }
+    }
+
     // MARK: - Start/Stop Listening
     func start() {
         guard !isListening else { return }
 
+        // Stop broadcasting while listening
+        stopBackgroundBroadcasting()
+
+        startListeningOnly()
+    }
+
+    private func startListeningOnly() {
         do {
             try configureAudioSession()
 
@@ -106,6 +159,112 @@ class UltrasonicReceiver: ObservableObject {
         }
     }
 
+    // MARK: - Customer Broadcasting
+    private func generateCustomerCode() -> String {
+        let chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        return String((0..<3).map { _ in chars.randomElement()! })
+    }
+
+    private func storeCustomerMapping(code: String, name: String) {
+        guard let url = URL(string: "\(posServerURL)/api/customer/store") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["shortCode": code, "name": name])
+
+        URLSession.shared.dataTask(with: request) { _, _, error in
+            if let error = error {
+                print("Failed to store customer mapping: \(error)")
+            } else {
+                print("Customer mapping stored: \(code) → \(name)")
+            }
+        }.resume()
+    }
+
+    private func broadcastIdentity() async {
+        guard let code = customerCode else { return }
+
+        let data = "~\(code)" // ~ABC
+        print("Broadcasting customer code: \(data)")
+
+        // Preamble - 10 tones (same as payment)
+        for _ in 0..<10 {
+            await playTone(frequency: TX_FREQ_PREAMBLE, duration: 0.25)
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms gap
+
+        // Data bits - 200ms tone + 100ms gap = 300ms per bit (same as payment)
+        let binary = stringToBinary(data)
+        for bit in binary {
+            let freq = bit == "1" ? TX_FREQ_ONE : TX_FREQ_ZERO
+            await playTone(frequency: freq, duration: 0.20)
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms gap
+        }
+
+        // End marker - 5 tones
+        for _ in 0..<5 {
+            await playTone(frequency: TX_FREQ_PREAMBLE, duration: 0.25)
+        }
+    }
+
+    private func stringToBinary(_ str: String) -> [Character] {
+        return str.flatMap { char -> [Character] in
+            let binary = String(char.asciiValue ?? 0, radix: 2)
+            let padded = String(repeating: "0", count: 8 - binary.count) + binary
+            return Array(padded)
+        }
+    }
+
+    private func playTone(frequency: Float, duration: Double) async {
+        await withCheckedContinuation { continuation in
+            let audioSession = AVAudioSession.sharedInstance()
+
+            let sampleRate = 48000.0
+            let frameCount = Int(sampleRate * duration)
+
+            var samples = [Float](repeating: 0, count: frameCount)
+            for i in 0..<frameCount {
+                let t = Double(i) / sampleRate
+                // Apply envelope to reduce clicks
+                var envelope: Double = 1.0
+                let rampSamples = Int(sampleRate * 0.01) // 10ms ramp
+                if i < rampSamples {
+                    envelope = Double(i) / Double(rampSamples)
+                } else if i > frameCount - rampSamples {
+                    envelope = Double(frameCount - i) / Double(rampSamples)
+                }
+                samples[i] = Float(sin(2.0 * .pi * Double(frequency) * t) * 0.3 * envelope)
+            }
+
+            let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount))!
+            buffer.frameLength = AVAudioFrameCount(frameCount)
+
+            let channelData = buffer.floatChannelData![0]
+            for i in 0..<frameCount {
+                channelData[i] = samples[i]
+            }
+
+            let player = AVAudioPlayerNode()
+            let engine = AVAudioEngine()
+            engine.attach(player)
+            engine.connect(player, to: engine.mainMixerNode, format: format)
+
+            do {
+                try engine.start()
+                player.play()
+                player.scheduleBuffer(buffer) {
+                    engine.stop()
+                    continuation.resume()
+                }
+            } catch {
+                print("Playback error: \(error)")
+                continuation.resume()
+            }
+        }
+    }
+
     func stop() {
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
@@ -135,6 +294,10 @@ class UltrasonicReceiver: ObservableObject {
         silenceCount = 0
         waitingForFirstDataBit = true
         currentBitIndex = 0
+        DispatchQueue.main.async {
+            self.bitsReceived = 0
+            self.isReceivingData = false
+        }
     }
 
     // MARK: - Audio Processing
@@ -168,9 +331,9 @@ class UltrasonicReceiver: ObservableObject {
         silenceCount = 0
 
         // Identify which frequency we're detecting
-        let isPreamble = isFrequency(dominantFreq, target: FREQ_PREAMBLE)
-        let isZero = isFrequency(dominantFreq, target: FREQ_ZERO)
-        let isOne = isFrequency(dominantFreq, target: FREQ_ONE)
+        let isPreamble = isFrequency(dominantFreq, target: RX_FREQ_PREAMBLE)
+        let isZero = isFrequency(dominantFreq, target: RX_FREQ_ZERO)
+        let isOne = isFrequency(dominantFreq, target: RX_FREQ_ONE)
 
         let match = isPreamble ? "P" : (isZero ? "0" : (isOne ? "1" : "-"))
 
@@ -197,6 +360,10 @@ class UltrasonicReceiver: ObservableObject {
                     silenceCount = 0
                     currentBitIndex = 0
                     waitingForFirstDataBit = true  // Wait for first data bit to sync timing
+                    DispatchQueue.main.async {
+                        self.isReceivingData = true
+                        self.bitsReceived = 0
+                    }
                 }
             } else {
                 preambleCount = max(0, preambleCount - 1)
@@ -205,8 +372,8 @@ class UltrasonicReceiver: ObservableObject {
         case .receivingData:
             // Time-based detection: fixed windows for each bit
 
-            let isDataFreq = isFrequency(dominantFreq, target: FREQ_ZERO) || isFrequency(dominantFreq, target: FREQ_ONE)
-            let isPreambleFreq = isFrequency(dominantFreq, target: FREQ_PREAMBLE)
+            let isDataFreq = isFrequency(dominantFreq, target: RX_FREQ_ZERO) || isFrequency(dominantFreq, target: RX_FREQ_ONE)
+            let isPreambleFreq = isFrequency(dominantFreq, target: RX_FREQ_PREAMBLE)
 
             // Sync timing on first data bit
             if waitingForFirstDataBit {
@@ -233,11 +400,14 @@ class UltrasonicReceiver: ObservableObject {
                 // Record the previous bit(s)
                 while currentBitIndex < expectedBitIndex && currentBitSamples.count > 0 {
                     let avgFreq = currentBitSamples.reduce(0, +) / Float(currentBitSamples.count)
-                    let bit: Character = isFrequency(avgFreq, target: FREQ_ONE) ? "1" : "0"
+                    let bit: Character = isFrequency(avgFreq, target: RX_FREQ_ONE) ? "1" : "0"
                     receivedBits.append(bit)
                     print("Bit[\(currentBitIndex)]: \(bit) (avg: \(Int(avgFreq))Hz, samples: \(currentBitSamples.count), total: \(receivedBits.count))")
                     currentBitIndex += 1
                     currentBitSamples = []
+                    DispatchQueue.main.async {
+                        self.bitsReceived = self.receivedBits.count
+                    }
                 }
                 currentBitIndex = expectedBitIndex
             }
@@ -249,7 +419,7 @@ class UltrasonicReceiver: ObservableObject {
                     // Finalize any pending bit
                     if currentBitSamples.count > 0 {
                         let avgFreq = currentBitSamples.reduce(0, +) / Float(currentBitSamples.count)
-                        let bit: Character = isFrequency(avgFreq, target: FREQ_ONE) ? "1" : "0"
+                        let bit: Character = isFrequency(avgFreq, target: RX_FREQ_ONE) ? "1" : "0"
                         receivedBits.append(bit)
                         print("Final bit: \(bit) (avg: \(Int(avgFreq))Hz)")
                     }
@@ -263,7 +433,7 @@ class UltrasonicReceiver: ObservableObject {
                 preambleCount = 0
             }
 
-            // Only sample during the "tone" portion of the bit window (first 150ms)
+            // Only sample during the tone portion (first 150ms of each 350ms window)
             if timeInCurrentBit < SAMPLE_WINDOW_MS && isDataFreq {
                 currentBitSamples.append(dominantFreq)
             }
@@ -359,9 +529,16 @@ class UltrasonicReceiver: ObservableObject {
         let binaryString = String(receivedBits)
         print("Received binary: \(binaryString) (\(binaryString.count) bits)")
 
-        // Convert binary to string - expecting 4-char short code
+        // Convert binary to string - expecting 2-char short code
         if let shortCode = binaryToString(binaryString) {
             print("Decoded short code: \(shortCode)")
+
+            // Ignore customer identity broadcasts (start with ~), only process payment codes
+            guard !shortCode.hasPrefix("~") else {
+                print("Ignoring customer identity broadcast")
+                resetDecoder()
+                return
+            }
 
             // Look up payment from POS server
             lookupPayment(shortCode: shortCode.uppercased())
