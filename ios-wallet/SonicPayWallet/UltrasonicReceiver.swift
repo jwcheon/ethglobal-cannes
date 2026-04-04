@@ -546,6 +546,7 @@ class UltrasonicReceiver: ObservableObject {
     //   cd pos-web && npm run tunnel (in terminal 2)
     //   Copy the https://xxx.trycloudflare.com URL
     //
+    // TODO: Change to https://dontlook.fyi once DNS is configured
     private let posServerURL = "https://sonicpay-pos.pages.dev"
 
     // MARK: - Data Processing
@@ -643,7 +644,7 @@ class UltrasonicReceiver: ObservableObject {
         guard !hasTriggeredPayment else { return }
         hasTriggeredPayment = true
 
-        print("Payment detected! Amount: \(amount), PaymentId: \(paymentId ?? "none")")
+        print("Payment detected! Amount: \(amount), Merchant: \(merchant), PaymentId: \(paymentId ?? "none")")
 
         let payload = PaymentPayload(
             merchant: merchant,
