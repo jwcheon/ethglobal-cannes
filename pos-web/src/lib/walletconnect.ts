@@ -23,9 +23,20 @@ interface CreatePaymentResponse {
 }
 
 interface PaymentStatusResponse {
-  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  status: 'requires_action' | 'processing' | 'succeeded' | 'failed' | 'cancelled' | 'expired';
   paymentId: string;
   amount?: PaymentAmount;
+  info?: {
+    txId?: string;
+    optionAmount?: {
+      value: string;
+      display?: {
+        assetSymbol?: string;
+        decimals?: number;
+        networkName?: string;
+      };
+    };
+  };
 }
 
 // Generate a unique reference ID (only letters, digits, spaces, / - : . , + allowed)
@@ -129,11 +140,11 @@ export async function waitForPayment(
       onStatusUpdate(status.status);
     }
 
-    if (status.status === 'completed') {
+    if (status.status === 'succeeded') {
       return status;
     }
 
-    if (status.status === 'failed' || status.status === 'cancelled') {
+    if (status.status === 'failed' || status.status === 'cancelled' || status.status === 'expired') {
       throw new Error(`Payment ${status.status}`);
     }
 

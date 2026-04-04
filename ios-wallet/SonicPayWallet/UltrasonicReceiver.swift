@@ -195,6 +195,33 @@ class UltrasonicReceiver: ObservableObject {
         print("Finished emitting customer code")
     }
 
+    /// Emit full name offline (no API) - called from UI
+    func emitNameOffline(name: String) async {
+        let data = "!\(name)" // !Name = full name, no API
+        print("Offline emitting: \(data) (\(data.count * 8) bits)")
+
+        // Preamble - 10 tones
+        for _ in 0..<10 {
+            await playTone(frequency: TX_FREQ_PREAMBLE, duration: 0.25)
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms gap
+
+        // Data bits - 200ms tone + 100ms gap = 300ms per bit
+        let binary = stringToBinary(data)
+        for bit in binary {
+            let freq = bit == "1" ? TX_FREQ_ONE : TX_FREQ_ZERO
+            await playTone(frequency: freq, duration: 0.20)
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms gap
+        }
+
+        // End marker - 5 tones
+        for _ in 0..<5 {
+            await playTone(frequency: TX_FREQ_PREAMBLE, duration: 0.25)
+        }
+
+        print("Finished offline emit")
+    }
+
     private func storeCustomerMapping(code: String, name: String) {
         guard let url = URL(string: "\(posServerURL)/api/customer/store") else { return }
 

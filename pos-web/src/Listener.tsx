@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import './App.css'
 
 interface PaymentInfo {
@@ -41,7 +42,7 @@ function Listener() {
   const [isListening, setIsListening] = useState(false)
   const [signalStrength, setSignalStrength] = useState(0)
   const [debugInfo, setDebugInfo] = useState('')
-  const [status, setStatus] = useState<'idle' | 'listening' | 'received' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'listening' | 'received' | 'error' | 'offline'>('idle')
   const [payment, setPayment] = useState<PaymentInfo | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('customerName') || '')
@@ -57,6 +58,7 @@ function Listener() {
   const txAudioContextRef = useRef<AudioContext | null>(null)
   const broadcastIntervalRef = useRef<number | null>(null)
   const [isEmittingName, setIsEmittingName] = useState(false)
+  const [isEmittingOffline, setIsEmittingOffline] = useState(false)
 
   // Decoding state
   const decodingStateRef = useRef<'waitingForPreamble' | 'receivingData'>('waitingForPreamble')
@@ -68,6 +70,10 @@ function Listener() {
   const waitingForFirstDataBitRef = useRef(true)
   const currentBitIndexRef = useRef(0)
   const hasTriggeredRef = useRef(false)
+
+  // Frequency visualization
+  const freqCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const freqHistoryRef = useRef<{ freq: number; energy: number; match: string }[]>([])
 
   const isFrequency = (freq: number, target: number): boolean => {
     return Math.abs(freq - target) < FREQ_TOLERANCE
@@ -170,6 +176,48 @@ function Listener() {
     console.log('Finished emitting customer code')
     setIsEmittingName(false)
   }, [customerName, playTone, storeCustomerMapping])
+
+  // Offline mode: emit full name without API
+  const startOfflineMode = useCallback(() => {
+    if (!customerName.trim()) return
+    setStatus('offline')
+  }, [customerName])
+
+  const emitNameOffline = useCallback(async () => {
+    if (!customerName.trim()) return
+    setIsEmittingOffline(true)
+
+    // Transmit: !NAME (! prefix for offline, full name)
+    const data = `!${customerName.trim()}`
+    const binary = stringToBinary(data)
+    console.log(`Offline emitting: ${data} (${binary.length} bits)`)
+
+    // Preamble - 10 tones
+    for (let i = 0; i < 10; i++) {
+      await playTone(TX_FREQ_PREAMBLE, 250)
+    }
+    await new Promise(r => setTimeout(r, 100))
+
+    // Data bits - 200ms tone + 100ms gap
+    for (const bit of binary) {
+      const freq = bit === '1' ? TX_FREQ_ONE : TX_FREQ_ZERO
+      await playTone(freq, 200)
+      await new Promise(r => setTimeout(r, 100))
+    }
+
+    // End marker - 5 tones
+    for (let i = 0; i < 5; i++) {
+      await playTone(TX_FREQ_PREAMBLE, 250)
+    }
+
+    console.log('Finished offline emit')
+    setIsEmittingOffline(false)
+  }, [customerName, playTone])
+
+  const exitOfflineMode = useCallback(() => {
+    setStatus('idle')
+    setIsEmittingOffline(false)
+  }, [])
 
   // Customer broadcasting disabled for now - focusing on receiving payments
   /*
@@ -340,6 +388,78 @@ function Listener() {
     const match = isPreamble ? 'P' : (isZero ? '0' : (isOne ? '1' : '-'))
     setDebugInfo(`${Math.round(dominantFreq)}Hz [${match}] ${decodingStateRef.current === 'waitingForPreamble' ? 'WAIT' : 'RX'} bits:${receivedBitsRef.current.length}`)
 
+    // Update frequency history for visualization
+    freqHistoryRef.current.push({ freq: dominantFreq, energy, match })
+    if (freqHistoryRef.current.length > 100) {
+      freqHistoryRef.current.shift()
+    }
+
+    // Draw frequency visualization
+    const canvas = freqCanvasRef.current
+    if (canvas) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        const width = canvas.width
+        const height = canvas.height
+        const history = freqHistoryRef.current
+        const freqToY = (f: number) => height - ((f - 17500) / 2500) * height
+
+        // Clear canvas
+        ctx.fillStyle = '#18181b'
+        ctx.fillRect(0, 0, width, height)
+
+        // Draw frequency range guides
+        ctx.strokeStyle = '#3f3f46'
+        ctx.lineWidth = 1
+        ;[18000, 18500, 19000].forEach(f => {
+          const y = freqToY(f)
+          ctx.beginPath()
+          ctx.setLineDash([4, 4])
+          ctx.moveTo(0, y)
+          ctx.lineTo(width, y)
+          ctx.stroke()
+        })
+        ctx.setLineDash([])
+
+        // Draw frequency line
+        if (history.length > 1) {
+          ctx.beginPath()
+          ctx.strokeStyle = '#3b82f6'
+          ctx.lineWidth = 2
+
+          history.forEach((point, i) => {
+            const x = (i / 100) * width
+            const y = freqToY(point.freq)
+            if (i === 0) {
+              ctx.moveTo(x, y)
+            } else {
+              ctx.lineTo(x, y)
+            }
+          })
+          ctx.stroke()
+
+          // Draw dots for matches
+          history.forEach((point, i) => {
+            if (point.match !== '-' && point.energy > 0.02) {
+              const x = (i / 100) * width
+              const y = freqToY(point.freq)
+              ctx.beginPath()
+              ctx.fillStyle = point.match === 'P' ? '#f59e0b' : (point.match === '1' ? '#10b981' : '#ef4444')
+              ctx.arc(x, y, 3, 0, Math.PI * 2)
+              ctx.fill()
+            }
+          })
+        }
+
+        // Labels
+        ctx.fillStyle = '#52525b'
+        ctx.font = '9px monospace'
+        ctx.fillText('19k', 4, freqToY(19000) + 3)
+        ctx.fillText('18.5k', 4, freqToY(18500) + 3)
+        ctx.fillText('18k', 4, freqToY(18000) + 3)
+      }
+    }
+
     if (decodingStateRef.current === 'waitingForPreamble') {
       if (isPreamble) {
         preambleCountRef.current++
@@ -488,6 +608,46 @@ function Listener() {
     }
   }, [isListening, analyzeAudio])
 
+  // Initialize canvas with empty state
+  useEffect(() => {
+    if (status !== 'listening') return
+    const canvas = freqCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const width = canvas.width
+    const height = canvas.height
+    const freqToY = (f: number) => height - ((f - 17500) / 2500) * height
+
+    // Dark background
+    ctx.fillStyle = '#18181b'
+    ctx.fillRect(0, 0, width, height)
+
+    // Draw frequency range guides
+    ctx.strokeStyle = '#3f3f46'
+    ctx.lineWidth = 1
+    ;[18000, 18500, 19000].forEach(f => {
+      const y = freqToY(f)
+      ctx.beginPath()
+      ctx.setLineDash([4, 4])
+      ctx.moveTo(0, y)
+      ctx.lineTo(width, y)
+      ctx.stroke()
+    })
+    ctx.setLineDash([])
+
+    // Labels
+    ctx.fillStyle = '#52525b'
+    ctx.font = '9px monospace'
+    ctx.fillText('19k', 4, freqToY(19000) + 3)
+    ctx.fillText('18.5k', 4, freqToY(18500) + 3)
+    ctx.fillText('18k', 4, freqToY(18000) + 3)
+
+    // Clear history
+    freqHistoryRef.current = []
+  }, [status])
+
   const openPayment = () => {
     if (payment?.gatewayUrl) {
       window.open(payment.gatewayUrl, '_blank')
@@ -506,7 +666,7 @@ function Listener() {
       <header className="header">
         <h1>👀 dontlook.fyi</h1>
         <div className="merchant-info">
-          <span className="merchant-name">Wallet</span>
+          <Link to="/merchant" className="mode-switch">POS →</Link>
           <span className={`status-dot ${isListening ? 'ready' : 'loading'}`} />
         </div>
       </header>
@@ -532,7 +692,7 @@ function Listener() {
               />
               <button
                 onClick={emitNameOnce}
-                disabled={!customerName.trim() || isEmittingName}
+                disabled={!customerName.trim() || isEmittingName || isEmittingOffline}
                 className="simulate-btn"
                 style={{
                   background: !customerName.trim() || isEmittingName ? 'var(--bg-tertiary)' : 'var(--success)',
@@ -542,10 +702,66 @@ function Listener() {
               >
                 {isEmittingName ? 'Emitting...' : 'Emit My Name'}
               </button>
+              <button
+                onClick={startOfflineMode}
+                disabled={!customerName.trim() || isEmittingOffline || isEmittingName}
+                className="simulate-btn"
+                style={{
+                  background: 'transparent',
+                  border: '1px dashed var(--border)',
+                  opacity: !customerName.trim() ? 0.5 : 1
+                }}
+              >
+                Offline Mode
+              </button>
             </div>
 
             <button className="charge-btn" onClick={startListening}>
               Start Listening
+            </button>
+          </div>
+        )}
+
+        {status === 'offline' && (
+          <div className="transmitting-screen">
+            {isEmittingOffline ? (
+              <>
+                <div className="sonic-animation">
+                  <div className="sonic-wave" />
+                  <div className="sonic-wave" />
+                  <div className="sonic-wave" />
+                </div>
+                <h2>Emitting Name...</h2>
+                <p className="frequency-info">Sending: {customerName}</p>
+                <p className="hint-text">No API • Direct ultrasonic transmission</p>
+              </>
+            ) : (
+              <>
+                <div className="sonic-animation" style={{ opacity: 0.3 }}>
+                  <div className="sonic-wave" />
+                  <div className="sonic-wave" />
+                  <div className="sonic-wave" />
+                </div>
+                <h2>Offline Mode</h2>
+                <p className="hint-text">Transmit your name without server</p>
+
+                <div className="customer-detected" style={{ margin: '20px 0' }}>
+                  <div className="label">Your Name</div>
+                  <div className="name" style={{ fontSize: '24px' }}>{customerName}</div>
+                </div>
+
+                <button
+                  className="charge-btn"
+                  onClick={emitNameOffline}
+                  disabled={isEmittingOffline}
+                >
+                  Emit My Name
+                </button>
+              </>
+            )}
+
+            <button className="cancel-btn" onClick={exitOfflineMode} style={{ marginTop: '16px' }}>
+              Exit Offline Mode
             </button>
           </div>
         )}
@@ -602,7 +818,18 @@ function Listener() {
               <p className="frequency-info" style={{ fontSize: '10px', opacity: 0.6 }}>{debugInfo}</p>
             )}
 
-            <button className="cancel-btn" onClick={stopListening}>
+            <canvas
+              ref={freqCanvasRef}
+              width={280}
+              height={80}
+              style={{
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                marginTop: '16px',
+              }}
+            />
+
+            <button className="cancel-btn" onClick={stopListening} style={{ marginTop: '16px' }}>
               Stop Listening
             </button>
           </div>

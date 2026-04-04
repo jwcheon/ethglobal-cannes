@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var showPaymentSheet = false
     @State private var customerName: String = ""
     @State private var isEmittingName: Bool = false
+    @State private var isEmittingOffline: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -141,7 +142,7 @@ struct ContentView: View {
                     .frame(maxWidth: 240)
                     .padding(.vertical, 12)
                     .background(
-                        customerName.isEmpty || isEmittingName
+                        customerName.isEmpty || isEmittingName || isEmittingOffline
                             ? Color(hex: "27272a")
                             : Color(hex: "10b981")
                     )
@@ -149,7 +150,32 @@ struct ContentView: View {
                     .cornerRadius(10)
                     .fontWeight(.medium)
                 }
-                .disabled(customerName.isEmpty || isEmittingName)
+                .disabled(customerName.isEmpty || isEmittingName || isEmittingOffline)
+
+                Button(action: emitNameOffline) {
+                    HStack(spacing: 8) {
+                        if isEmittingOffline {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: "71717a")))
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "wifi.slash")
+                        }
+                        Text(isEmittingOffline ? "Emitting..." : "Offline Mode")
+                    }
+                    .frame(maxWidth: 240)
+                    .padding(.vertical, 12)
+                    .background(Color.clear)
+                    .foregroundColor(customerName.isEmpty || isEmittingOffline ? Color(hex: "52525b") : Color(hex: "71717a"))
+                    .cornerRadius(10)
+                    .fontWeight(.medium)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(style: StrokeStyle(lineWidth: 1, dash: [5]))
+                            .foregroundColor(Color(hex: "3f3f46"))
+                    )
+                }
+                .disabled(customerName.isEmpty || isEmittingOffline || isEmittingName)
             }
             .padding(.top, 16)
         }
@@ -329,6 +355,19 @@ struct ContentView: View {
             await receiver.emitNameOnce(name: customerName)
             await MainActor.run {
                 isEmittingName = false
+            }
+        }
+    }
+
+    private func emitNameOffline() {
+        guard !customerName.isEmpty else { return }
+        isEmittingOffline = true
+
+        // Emit full name offline (no API)
+        Task {
+            await receiver.emitNameOffline(name: customerName)
+            await MainActor.run {
+                isEmittingOffline = false
             }
         }
     }

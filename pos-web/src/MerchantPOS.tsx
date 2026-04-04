@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import './App.css'
 import { createPayment, getPaymentStatus } from './lib/walletconnect'
 
@@ -36,9 +37,11 @@ function MerchantPOS() {
   const [amount, setAmount] = useState('')
   const [merchantName] = useState(import.meta.env.VITE_MERCHANT_NAME || 'dontlook.fyi')
   const [audioReady, setAudioReady] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'creating' | 'transmitting' | 'waiting' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'creating' | 'transmitting' | 'waiting' | 'processing' | 'success' | 'error' | 'offline'>('idle')
+  const [offlineName, setOfflineName] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [lastPayload, setLastPayload] = useState<PaymentPayload | null>(null)
+  const [txInfo, setTxInfo] = useState<{ txId: string; amount: string; network: string } | null>(null)
   const [detectedCustomer, setDetectedCustomer] = useState<string | null>(null)
   const [customerLastSeen, setCustomerLastSeen] = useState<number>(0)
   const [customerDebug, setCustomerDebug] = useState<string>('')
@@ -57,6 +60,13 @@ function MerchantPOS() {
   const rxWaitingFirstBitRef = useRef(true)
   const rxBitIndexRef = useRef(0)
 
+  // Frequency visualization
+  const freqCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const freqHistoryRef = useRef<{ freq: number; energy: number; match: string }[]>([])
+
+  // Offline mode ref
+  const isOfflineModeRef = useRef(false)
+
   useEffect(() => {
     setAudioReady(true);
   }, []);
@@ -74,7 +84,7 @@ function MerchantPOS() {
   const FREQ_TOLERANCE = 200;
   const RX_BIT_WINDOW_MS = 300;  // Same as payment timing
   const RX_SAMPLE_WINDOW_MS = 150;  // Sample first 150ms of 200ms tone
-  const RX_TIMEOUT_MS = 15000;  // Reset if no complete message in 15 seconds
+  const RX_TIMEOUT_MS = 60000;  // Reset if no complete message in 60 seconds (longer names need more time)
 
   // Customer detection helpers
   const isFrequency = (freq: number, target: number) => Math.abs(freq - target) < FREQ_TOLERANCE;
@@ -115,7 +125,7 @@ function MerchantPOS() {
     }
   }, []);
 
-  const processCustomerBroadcast = useCallback(() => {
+  const processCustomerBroadcast = useCallback((isOfflineMode: boolean = false) => {
     const bits = rxBitsRef.current;
     console.log('Processing broadcast:', bits.length, 'bits:', bits.join(''));
     if (bits.length < 8) {
@@ -128,11 +138,20 @@ function MerchantPOS() {
     const decoded = binaryToString(binaryString);
     console.log('Binary:', binaryString, '-> Decoded:', decoded);
 
-    // Check if it's a customer broadcast (starts with ~)
+    // Check if it's a customer broadcast (starts with ~) - online mode with API lookup
     if (decoded && decoded.startsWith('~')) {
       const code = decoded.slice(1).trim().toUpperCase();
       if (code && code.length >= 2) {
         lookupCustomer(code);
+      }
+    }
+    // Check if it's an offline broadcast (starts with !) - no API, direct name
+    else if (decoded && decoded.startsWith('!')) {
+      const name = decoded.slice(1).trim();
+      if (name && isOfflineMode) {
+        console.log('Offline name detected:', name);
+        setOfflineName(name);
+        setCustomerLastSeen(Date.now());
       }
     }
     resetRxDecoder();
@@ -172,6 +191,80 @@ function MerchantPOS() {
     const match = isPreamble ? 'P' : (isZero ? '0' : (isOne ? '1' : '-'));
     const state = rxDecodingStateRef.current === 'waitingForPreamble' ? 'WAIT' : (rxWaitingFirstBitRef.current ? 'SYNC' : 'RX');
     setCustomerDebug(`${Math.round(dominantFreq)}Hz [${match}] E:${energy.toFixed(2)} ${state} bits:${rxBitsRef.current.length}/24`);
+
+    // Update frequency history for visualization
+    freqHistoryRef.current.push({ freq: dominantFreq, energy, match });
+    if (freqHistoryRef.current.length > 100) {
+      freqHistoryRef.current.shift();
+    }
+
+    // Draw frequency visualization
+    const canvas = freqCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const width = canvas.width;
+        const height = canvas.height;
+        const history = freqHistoryRef.current;
+
+        // Clear canvas
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw frequency range guides
+        ctx.strokeStyle = '#3f3f46';
+        ctx.lineWidth = 1;
+        const freqToY = (f: number) => height - ((f - 17500) / 2500) * height;
+
+        // Guide lines for 18000, 18500, 19000
+        [18000, 18500, 19000].forEach(f => {
+          const y = freqToY(f);
+          ctx.beginPath();
+          ctx.setLineDash([4, 4]);
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
+
+        // Draw frequency line
+        if (history.length > 1) {
+          ctx.beginPath();
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+
+          history.forEach((point, i) => {
+            const x = (i / 100) * width;
+            const y = freqToY(point.freq);
+            if (i === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          });
+          ctx.stroke();
+
+          // Draw dots for matches
+          history.forEach((point, i) => {
+            if (point.match !== '-' && point.energy > 0.02) {
+              const x = (i / 100) * width;
+              const y = freqToY(point.freq);
+              ctx.beginPath();
+              ctx.fillStyle = point.match === 'P' ? '#f59e0b' : (point.match === '1' ? '#10b981' : '#ef4444');
+              ctx.arc(x, y, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          });
+        }
+
+        // Labels
+        ctx.fillStyle = '#52525b';
+        ctx.font = '9px monospace';
+        ctx.fillText('19k', 4, freqToY(19000) + 3);
+        ctx.fillText('18.5k', 4, freqToY(18500) + 3);
+        ctx.fillText('18k', 4, freqToY(18000) + 3);
+      }
+    }
 
     // Need minimum energy
     const minEnergy = rxDecodingStateRef.current === 'receivingData' ? 0.01 : 0.03;
@@ -250,7 +343,7 @@ function MerchantPOS() {
           // Trim to byte boundary and process
           const validBits = Math.floor(rxBitsRef.current.length / 8) * 8;
           rxBitsRef.current = rxBitsRef.current.slice(0, validBits);
-          processCustomerBroadcast();
+          processCustomerBroadcast(isOfflineModeRef.current);
           rxAnimationFrameRef.current = requestAnimationFrame(analyzeCustomerAudio);
           return;
         }
@@ -300,15 +393,31 @@ function MerchantPOS() {
     }
   }, []);
 
-  // Customer detection only when on idle screen
+  // Customer detection only when on idle or offline screen
   useEffect(() => {
     if (status === 'idle') {
+      isOfflineModeRef.current = false;
+      startCustomerDetection();
+      return () => stopCustomerDetection();
+    } else if (status === 'offline') {
+      isOfflineModeRef.current = true;
       startCustomerDetection();
       return () => stopCustomerDetection();
     } else {
       stopCustomerDetection();
     }
   }, [status, startCustomerDetection, stopCustomerDetection]);
+
+  const startOfflineMode = useCallback(() => {
+    setOfflineName(null);
+    setStatus('offline');
+  }, []);
+
+  const stopOfflineMode = useCallback(() => {
+    isOfflineModeRef.current = false;
+    setOfflineName(null);
+    setStatus('idle');
+  }, []);
 
   // Clear customer after 10 seconds of no signal
   useEffect(() => {
@@ -320,6 +429,42 @@ function MerchantPOS() {
     }, 1000);
     return () => clearInterval(timer);
   }, [detectedCustomer, customerLastSeen]);
+
+  // Initialize canvas with empty state
+  useEffect(() => {
+    const canvas = freqCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const freqToY = (f: number) => height - ((f - 17500) / 2500) * height;
+
+    // Dark background
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw frequency range guides
+    ctx.strokeStyle = '#3f3f46';
+    ctx.lineWidth = 1;
+    [18000, 18500, 19000].forEach(f => {
+      const y = freqToY(f);
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // Labels
+    ctx.fillStyle = '#52525b';
+    ctx.font = '9px monospace';
+    ctx.fillText('19k', 4, freqToY(19000) + 3);
+    ctx.fillText('18.5k', 4, freqToY(18500) + 3);
+    ctx.fillText('18k', 4, freqToY(18000) + 3);
+  }, [status]);
 
   const playTone = useCallback((frequency: number, duration: number): Promise<void> => {
     return new Promise((resolve) => {
@@ -435,26 +580,41 @@ function MerchantPOS() {
         }
 
         try {
-          const status = await getPaymentStatus(paymentId);
-          console.log('Payment status:', status.status);
+          const statusRes = await getPaymentStatus(paymentId);
+          console.log('Payment status:', statusRes.status, statusRes);
 
-          if (status.status === 'completed') {
+          if (statusRes.status === 'processing') {
+            setStatus('processing');
+          } else if (statusRes.status === 'succeeded') {
             clearInterval(pollInterval);
+            // Capture transaction info
+            if (statusRes.info) {
+              const info = statusRes.info;
+              const decimals = info.optionAmount?.display?.decimals || 6;
+              const value = info.optionAmount?.value ? (parseInt(info.optionAmount.value) / Math.pow(10, decimals)).toFixed(2) : '';
+              const symbol = info.optionAmount?.display?.assetSymbol || '';
+              setTxInfo({
+                txId: info.txId || '',
+                amount: value ? `${value} ${symbol}` : '',
+                network: info.optionAmount?.display?.networkName || ''
+              });
+            }
             setStatus('success');
             setTimeout(() => {
               setStatus('idle');
               setAmount('');
               setLastPayload(null);
-            }, 5000);
-          } else if (status.status === 'failed' || status.status === 'cancelled') {
+              setTxInfo(null);
+            }, 8000);
+          } else if (statusRes.status === 'failed' || statusRes.status === 'cancelled' || statusRes.status === 'expired') {
             clearInterval(pollInterval);
-            setErrorMessage(`Payment ${status.status}`);
+            setErrorMessage(`Payment ${statusRes.status}`);
             setStatus('error');
           }
         } catch (err) {
           console.error('Status poll error:', err);
         }
-      }, 3000);
+      }, 2000);
 
       // Timeout after 2 minutes
       setTimeout(() => {
@@ -507,7 +667,7 @@ function MerchantPOS() {
       <header className="header">
         <h1>👀 dontlook.fyi</h1>
         <div className="merchant-info">
-          <span className="merchant-name">{merchantName}</span>
+          <Link to="/" className="mode-switch">← Wallet</Link>
           <span className={`status-dot ${audioReady ? 'ready' : 'loading'}`} />
         </div>
       </header>
@@ -527,6 +687,17 @@ function MerchantPOS() {
                 {customerDebug}
               </div>
             )}
+
+            <canvas
+              ref={freqCanvasRef}
+              width={280}
+              height={80}
+              style={{
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                marginBottom: '16px',
+              }}
+            />
 
             <div className="amount-display">
               <span className="currency-symbol">$</span>
@@ -553,7 +724,57 @@ function MerchantPOS() {
             >
               Charge ${amount || '0.00'}
             </button>
+
+            <button
+              className="simulate-btn"
+              onClick={startOfflineMode}
+              style={{ marginTop: '12px' }}
+            >
+              Offline Mode
+            </button>
           </>
+        )}
+
+        {status === 'offline' && (
+          <div className="transmitting-screen">
+            <div className="sonic-animation">
+              <div className="sonic-wave" />
+              <div className="sonic-wave" />
+              <div className="sonic-wave" />
+            </div>
+            <h2>Offline Mode</h2>
+            <p className="instruction">Listening for customer names...</p>
+
+            {customerDebug && (
+              <div className="frequency-info" style={{ marginBottom: '8px' }}>
+                {customerDebug}
+              </div>
+            )}
+
+            <canvas
+              ref={freqCanvasRef}
+              width={280}
+              height={80}
+              style={{
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                marginBottom: '16px',
+              }}
+            />
+
+            {offlineName ? (
+              <div className="customer-detected" style={{ marginTop: '16px' }}>
+                <div className="label">Name Received</div>
+                <div className="name" style={{ fontSize: '24px' }}>{offlineName}</div>
+              </div>
+            ) : (
+              <p className="hint-text">No API calls - direct ultrasonic decoding</p>
+            )}
+
+            <button className="cancel-btn" onClick={stopOfflineMode} style={{ marginTop: '24px' }}>
+              Exit Offline Mode
+            </button>
+          </div>
         )}
 
         {status === 'creating' && (
@@ -610,13 +831,39 @@ function MerchantPOS() {
           </div>
         )}
 
+        {status === 'processing' && (
+          <div className="transmitting-screen">
+            <div className="sonic-animation">
+              <div className="sonic-wave" />
+              <div className="sonic-wave" />
+              <div className="sonic-wave" />
+            </div>
+            <h2>Processing Payment...</h2>
+            <p className="frequency-info">Transaction being confirmed on-chain</p>
+            <div className="payment-details">
+              <p className="amount">${lastPayload?.amount}</p>
+            </div>
+          </div>
+        )}
+
         {status === 'success' && (
           <div className="success-screen">
             <div className="checkmark">✓</div>
             <h2>Payment Received!</h2>
             <div className="payment-details">
-              <p className="amount">${lastPayload?.amount} </p>
-              <p className="merchant">From: customer.eth</p>
+              <p className="amount">{txInfo?.amount || `$${lastPayload?.amount}`}</p>
+              {txInfo?.network && <p className="chain">on {txInfo.network}</p>}
+              {txInfo?.txId && (
+                <a
+                  href={`https://basescan.org/tx/${txInfo.txId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="payment-id"
+                  style={{ color: 'var(--accent)', textDecoration: 'underline' }}
+                >
+                  View on Basescan ↗
+                </a>
+              )}
             </div>
           </div>
         )}
