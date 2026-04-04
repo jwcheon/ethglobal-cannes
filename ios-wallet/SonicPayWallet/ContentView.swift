@@ -291,11 +291,32 @@ struct ContentView: View {
 
     private func confirmPayment(_ payload: PaymentPayload) {
         showPaymentSheet = false
-        walletState = .processing
 
-        // Simulate payment processing
+        // If we have a WalletConnect Pay gateway URL, open it
+        if let gatewayUrlString = payload.gatewayUrl,
+           let gatewayUrl = URL(string: gatewayUrlString) {
+            print("Opening WC Pay gateway: \(gatewayUrlString)")
+            UIApplication.shared.open(gatewayUrl) { success in
+                if success {
+                    // User will complete payment in browser/WC Pay
+                    // Return to listening state
+                    DispatchQueue.main.async {
+                        self.receiver.reset()
+                        self.walletState = self.receiver.isListening ? .listening : .idle
+                    }
+                } else {
+                    // Failed to open URL
+                    DispatchQueue.main.async {
+                        self.walletState = .error(message: "Could not open payment URL")
+                    }
+                }
+            }
+            return
+        }
+
+        // Fallback: simulate payment (demo mode)
+        walletState = .processing
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            // In production, integrate WalletConnect Pay here
             walletState = .success(txHash: "0x\(UUID().uuidString.prefix(16))")
 
             // Return to listening after 3 seconds
@@ -348,7 +369,11 @@ struct PaymentConfirmationView: View {
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white)
 
-                            if let profile = ensProfile {
+                            if let paymentId = payload.paymentId {
+                                Text("Payment: \(paymentId.prefix(16))...")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            } else if let profile = ensProfile {
                                 Text(profile.description ?? "")
                                     .font(.caption)
                                     .foregroundColor(.gray)
@@ -357,7 +382,7 @@ struct PaymentConfirmationView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "checkmark.seal.fill")
                                     .foregroundColor(Color(hex: "22c55e"))
-                                Text("Verified ENS")
+                                Text(payload.paymentId != nil ? "WalletConnect Pay" : "Verified ENS")
                                     .foregroundColor(Color(hex: "22c55e"))
                             }
                             .font(.caption)
@@ -381,8 +406,8 @@ struct PaymentConfirmationView: View {
                     VStack(spacing: 12) {
                         Button(action: onConfirm) {
                             HStack {
-                                Image(systemName: "faceid")
-                                Text("Confirm with Face ID")
+                                Image(systemName: payload.gatewayUrl != nil ? "link" : "faceid")
+                                Text(payload.gatewayUrl != nil ? "Pay with WalletConnect" : "Confirm with Face ID")
                             }
                             .frame(maxWidth: .infinity)
                             .padding()

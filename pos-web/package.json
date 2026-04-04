@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

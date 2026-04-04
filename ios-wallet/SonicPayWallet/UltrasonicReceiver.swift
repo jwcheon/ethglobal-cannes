@@ -40,8 +40,8 @@ class UltrasonicReceiver: ObservableObject {
     private var silenceCount = 0
     private var waitingForFirstDataBit = true  // Sync flag
     private var currentBitIndex = 0  // Which bit we're currently receiving
-    private let BIT_WINDOW_MS: Double = 350  // Total time per bit (150ms tone + 200ms gap)
-    private let SAMPLE_WINDOW_MS: Double = 150  // Only sample during the tone portion
+    private let BIT_WINDOW_MS: Double = 300  // Total time per bit (250ms tone + 50ms gap)
+    private let SAMPLE_WINDOW_MS: Double = 250  // Only sample during the tone portion
 
     private enum DecodingState {
         case waitingForPreamble
@@ -337,6 +337,17 @@ class UltrasonicReceiver: ObservableObject {
         return (peakFrequency, energy)
     }
 
+    // MARK: - POS Server Configuration
+    // Option 1: Local network (same WiFi) - use your Mac's IP
+    // Option 2: Cloudflare tunnel - run `npm run tunnel` in pos-web, paste URL here
+    //
+    // To get tunnel URL:
+    //   cd pos-web && npm run dev    (in terminal 1)
+    //   cd pos-web && npm run tunnel (in terminal 2)
+    //   Copy the https://xxx.trycloudflare.com URL
+    //
+    private let posServerURL = "https://hood-cart-del-gifts.trycloudflare.com"
+
     // MARK: - Data Processing
     private func processReceivedData() {
         guard receivedBits.count >= 8 else {
@@ -348,21 +359,58 @@ class UltrasonicReceiver: ObservableObject {
         let binaryString = String(receivedBits)
         print("Received binary: \(binaryString) (\(binaryString.count) bits)")
 
-        // Convert binary to string
-        if let decodedString = binaryToString(binaryString),
-           let cents = Int(decodedString) {
-            let dollars = Double(cents) / 100.0
-            let amount = String(format: "%.2f", dollars)
-            print("Decoded: \(cents) cents = $\(amount)")
+        // Convert binary to string - expecting 4-char short code
+        if let shortCode = binaryToString(binaryString) {
+            print("Decoded short code: \(shortCode)")
 
-            // Reset flag to allow this payment (previous payment is complete)
-            hasTriggeredPayment = false
-            triggerPayment(amount: amount, merchant: "bluebottle.eth")
+            // Look up payment from POS server
+            lookupPayment(shortCode: shortCode.uppercased())
         } else {
             print("Failed to decode binary data")
         }
 
         resetDecoder()
+    }
+
+    // MARK: - Payment Lookup
+    private func lookupPayment(shortCode: String) {
+        guard let url = URL(string: "\(posServerURL)/api/lookup/\(shortCode)") else {
+            print("Invalid lookup URL")
+            return
+        }
+
+        print("Looking up payment: \(url)")
+
+        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            if let error = error {
+                print("Lookup error: \(error)")
+                return
+            }
+
+            guard let data = data else {
+                print("No data received")
+                return
+            }
+
+            do {
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                guard let paymentId = json?["paymentId"] as? String,
+                      let gatewayUrl = json?["gatewayUrl"] as? String,
+                      let amount = json?["amount"] as? String else {
+                    print("Invalid payment data: \(String(data: data, encoding: .utf8) ?? "nil")")
+                    return
+                }
+
+                print("Payment found: \(paymentId), amount: $\(amount)")
+
+                // Reset flag to allow this payment
+                self?.hasTriggeredPayment = false
+                self?.triggerPayment(amount: amount, merchant: "merchant", paymentId: paymentId, gatewayUrl: gatewayUrl)
+
+            } catch {
+                print("JSON parse error: \(error)")
+            }
+        }.resume()
     }
 
     private func binaryToString(_ binary: String) -> String? {
@@ -383,11 +431,11 @@ class UltrasonicReceiver: ObservableObject {
     }
 
     // MARK: - Payment Trigger
-    private func triggerPayment(amount: String, merchant: String) {
+    private func triggerPayment(amount: String, merchant: String, paymentId: String? = nil, gatewayUrl: String? = nil) {
         guard !hasTriggeredPayment else { return }
         hasTriggeredPayment = true
 
-        print("Payment detected! Amount: \(amount), Merchant: \(merchant)")
+        print("Payment detected! Amount: \(amount), PaymentId: \(paymentId ?? "none")")
 
         let payload = PaymentPayload(
             merchant: merchant,
@@ -395,7 +443,9 @@ class UltrasonicReceiver: ObservableObject {
             currency: "USDC",
             chain: "base",
             nonce: String(UUID().uuidString.prefix(8)).lowercased(),
-            timestamp: Int(Date().timeIntervalSince1970)
+            timestamp: Int(Date().timeIntervalSince1970),
+            paymentId: paymentId,
+            gatewayUrl: gatewayUrl
         )
 
         DispatchQueue.main.async {

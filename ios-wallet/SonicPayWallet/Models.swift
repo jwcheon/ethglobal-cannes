@@ -10,6 +10,8 @@ struct PaymentPayload: Codable, Identifiable {
     let chain: String
     let nonce: String
     let timestamp: Int
+    let paymentId: String?      // WalletConnect Pay payment ID
+    let gatewayUrl: String?     // WalletConnect Pay gateway URL
 
     var formattedAmount: String {
         "$\(amount) \(currency)"

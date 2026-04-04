@@ -1,13 +1,33 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
+import { createPayment, extractPaymentId, getPaymentStatus } from './lib/walletconnect'
 
 interface PaymentPayload {
   merchant: string;
   amount: string;
   currency: string;
-  chain: string;
-  nonce: string;
-  timestamp: number;
+  paymentId?: string;
+  gatewayUrl?: string;
+  shortCode?: string;
+}
+
+// Generate a short alphanumeric code (4 chars, no confusing characters)
+function generateShortCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Store payment mapping on server
+async function storePaymentMapping(shortCode: string, paymentId: string, gatewayUrl: string, amount: string) {
+  await fetch('/api/store', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shortCode, paymentId, gatewayUrl, amount }),
+  });
 }
 
 // Audio context and oscillator
@@ -15,11 +35,11 @@ let audioContext: AudioContext | null = null;
 
 function App() {
   const [amount, setAmount] = useState('')
-  const [merchantName] = useState('bluebottle.eth')
+  const [merchantName] = useState('SonicPay Demo')
   const [currency] = useState('USDC')
-  const [chain] = useState('base')
   const [audioReady, setAudioReady] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'transmitting' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'creating' | 'transmitting' | 'waiting' | 'success' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState('')
   const [lastPayload, setLastPayload] = useState<PaymentPayload | null>(null)
   const stopRef = useRef(false);
 
@@ -31,7 +51,7 @@ function App() {
   const FREQ_PREAMBLE = 18000;  // Start/end marker
   const FREQ_ZERO = 18500;      // Binary 0
   const FREQ_ONE = 19000;       // Binary 1
-  const BIT_DURATION = 200;     // ms per bit (slower for reliability)
+  const BIT_DURATION = 250;     // ms per preamble tone
 
   const playTone = useCallback((frequency: number, duration: number): Promise<void> => {
     return new Promise((resolve) => {
@@ -83,12 +103,12 @@ function App() {
     // Brief silence to separate preamble from data
     await new Promise(r => setTimeout(r, 100));
 
-    // Data bits with long gaps for reliable detection
+    // Data bits - 250ms tone + 50ms gap = 300ms per bit for reliability
     for (const bit of binary) {
       if (stopRef.current) return;
       const freq = bit === '1' ? FREQ_ONE : FREQ_ZERO;
-      await playTone(freq, 150); // 150ms tone
-      await new Promise(r => setTimeout(r, 200)); // 200ms gap - should be clearly silent
+      await playTone(freq, 250); // 250ms tone
+      await new Promise(r => setTimeout(r, 50)); // 50ms gap
     }
 
     // End marker - 5 tones
@@ -101,33 +121,88 @@ function App() {
   const startTransmitting = useCallback(async () => {
     if (!amount) return;
 
-    const payload: PaymentPayload = {
-      merchant: merchantName,
-      amount: amount,
-      currency: currency,
-      chain: chain,
-      nonce: Math.random().toString(36).substring(2, 10),
-      timestamp: Math.floor(Date.now() / 1000)
-    };
-
-    setStatus('transmitting');
-    setLastPayload(payload);
     stopRef.current = false;
+    setErrorMessage('');
 
-    // Send cents as payload (e.g., "450" for $4.50)
-    const cents = Math.round(parseFloat(amount) * 100).toString();
-    console.log('Transmitting cents:', cents);
+    try {
+      // Step 1: Create WC Pay payment
+      setStatus('creating');
+      const cents = Math.round(parseFloat(amount) * 100);
+      console.log('Creating WC Pay payment for', cents, 'cents');
 
-    // Single transmission for testing (no loop)
-    await transmitData(cents);
-    console.log('Transmission complete');
+      const paymentResponse = await createPayment(cents);
+      console.log('Payment created:', paymentResponse);
 
-    // Wait a bit then go back to idle for another charge
-    await new Promise(r => setTimeout(r, 2000));
-    if (!stopRef.current) {
-      setStatus('idle');
+      const paymentId = paymentResponse.paymentId;
+      const gatewayUrl = paymentResponse.gatewayUrl;
+      console.log('Payment ID:', paymentId);
+
+      // Generate short code and store mapping
+      const shortCode = generateShortCode();
+      await storePaymentMapping(shortCode, paymentId, gatewayUrl, amount);
+      console.log('Short code:', shortCode);
+
+      const payload: PaymentPayload = {
+        merchant: merchantName,
+        amount: amount,
+        currency: currency,
+        paymentId: paymentId,
+        gatewayUrl: gatewayUrl,
+        shortCode: shortCode,
+      };
+
+      setLastPayload(payload);
+      setStatus('transmitting');
+
+      // Step 2: Transmit SHORT CODE via ultrasound (not full paymentId!)
+      console.log('Transmitting short code:', shortCode);
+      await transmitData(shortCode);
+      console.log('Transmission complete');
+
+      // Step 3: Wait for payment (poll status)
+      setStatus('waiting');
+      const pollInterval = setInterval(async () => {
+        if (stopRef.current) {
+          clearInterval(pollInterval);
+          return;
+        }
+
+        try {
+          const status = await getPaymentStatus(paymentId);
+          console.log('Payment status:', status.status);
+
+          if (status.status === 'completed') {
+            clearInterval(pollInterval);
+            setStatus('success');
+            setTimeout(() => {
+              setStatus('idle');
+              setAmount('');
+              setLastPayload(null);
+            }, 5000);
+          } else if (status.status === 'failed' || status.status === 'cancelled') {
+            clearInterval(pollInterval);
+            setErrorMessage(`Payment ${status.status}`);
+            setStatus('error');
+          }
+        } catch (err) {
+          console.error('Status poll error:', err);
+        }
+      }, 3000);
+
+      // Timeout after 2 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (status === 'waiting') {
+          setStatus('idle');
+        }
+      }, 120000);
+
+    } catch (err) {
+      console.error('Payment error:', err);
+      setErrorMessage(err instanceof Error ? err.message : 'Unknown error');
+      setStatus('error');
     }
-  }, [amount, merchantName, currency, chain, transmitData]);
+  }, [amount, merchantName, currency, transmitData]);
 
   const stopTransmitting = useCallback(() => {
     stopRef.current = true;
@@ -201,6 +276,17 @@ function App() {
           </>
         )}
 
+        {status === 'creating' && (
+          <div className="transmitting-screen">
+            <div className="spinner" />
+            <h2>Creating Payment...</h2>
+            <p className="frequency-info">Connecting to WalletConnect Pay</p>
+            <div className="payment-details">
+              <p className="amount">${amount} {currency}</p>
+            </div>
+          </div>
+        )}
+
         {status === 'transmitting' && (
           <div className="transmitting-screen">
             <div className="sonic-animation">
@@ -209,13 +295,29 @@ function App() {
               <div className="sonic-wave" />
             </div>
             <h2>Emitting Ultrasonic Signal...</h2>
-            <p className="frequency-info">18-19 kHz FSK</p>
+            <p className="frequency-info">Code: {lastPayload?.shortCode}</p>
             <div className="payment-details">
               <p className="amount">${lastPayload?.amount} {lastPayload?.currency}</p>
-              <p className="merchant">To: {lastPayload?.merchant}</p>
-              <p className="chain">Chain: {lastPayload?.chain}</p>
             </div>
-            <p className="instruction">Customer's phone will detect this automatically</p>
+            <p className="instruction">~10 seconds • Phone will detect automatically</p>
+
+            <div className="action-buttons">
+              <button className="cancel-btn" onClick={stopTransmitting}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {status === 'waiting' && (
+          <div className="transmitting-screen">
+            <div className="spinner" />
+            <h2>Waiting for Payment...</h2>
+            <p className="frequency-info">Customer confirming on their device</p>
+            <div className="payment-details">
+              <p className="amount">${lastPayload?.amount} {lastPayload?.currency}</p>
+              <p className="payment-id">ID: {lastPayload?.paymentId}</p>
+            </div>
 
             <div className="action-buttons">
               <button className="simulate-btn" onClick={simulatePaymentReceived}>
@@ -243,7 +345,7 @@ function App() {
           <div className="error-screen">
             <div className="error-icon">!</div>
             <h2>Something went wrong</h2>
-            <p>Please check your browser supports Web Audio</p>
+            <p>{errorMessage || 'Please check your browser supports Web Audio'}</p>
             <button className="retry-btn" onClick={() => setStatus('idle')}>
               Try Again
             </button>
@@ -252,8 +354,7 @@ function App() {
       </main>
 
       <footer className="footer">
-        <p>Powered by WalletConnect Pay + ENS</p>
-        <p className="chain-info">{chain} network</p>
+        <p>Powered by WalletConnect Pay</p>
       </footer>
     </div>
   )
