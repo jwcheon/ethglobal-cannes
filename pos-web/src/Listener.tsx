@@ -508,59 +508,33 @@ function Listener() {
       <main className="main">
         {status === 'idle' && (
           <div className="transmitting-screen">
-            <div className="sonic-animation" style={{ opacity: 0.3 }}>
+            <div className="sonic-animation" style={{ opacity: 0.2 }}>
               <div className="sonic-wave" />
               <div className="sonic-wave" />
               <div className="sonic-wave" />
             </div>
             <h2>Ready to Receive</h2>
-            <p className="frequency-info">Tap to listen for payment requests</p>
+            <p className="hint-text">Listen for payment requests</p>
 
-            <div style={{ margin: '20px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <div style={{ margin: '24px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
               <input
                 type="text"
+                className="name-input"
                 placeholder="Your name"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  background: 'rgba(255,255,255,0.1)',
-                  color: 'white',
-                  fontSize: '16px',
-                  width: '200px',
-                  textAlign: 'center'
-                }}
               />
               <button
                 onClick={emitNameOnce}
                 disabled={!customerName.trim() || isEmittingName}
+                className="simulate-btn"
                 style={{
-                  padding: '12px 24px',
-                  borderRadius: '12px',
+                  background: !customerName.trim() || isEmittingName ? 'var(--bg-tertiary)' : 'var(--success)',
                   border: 'none',
-                  background: !customerName.trim() || isEmittingName ? 'rgba(255,255,255,0.2)' : '#22c55e',
-                  color: 'white',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: !customerName.trim() || isEmittingName ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
+                  opacity: !customerName.trim() || isEmittingName ? 0.5 : 1
                 }}
               >
-                {isEmittingName ? (
-                  <>
-                    <span className="spinner" style={{ width: '16px', height: '16px' }} />
-                    Emitting...
-                  </>
-                ) : (
-                  <>
-                    <span>👋</span>
-                    Emit My Name
-                  </>
-                )}
+                {isEmittingName ? 'Emitting...' : 'Emit My Name'}
               </button>
             </div>
 
@@ -584,27 +558,27 @@ function Listener() {
 
             {isReceivingData ? (
               <>
-                <div className="progress-container" style={{
+                <div style={{
                   width: '80%',
-                  maxWidth: '300px',
-                  height: '8px',
-                  background: 'rgba(255,255,255,0.1)',
-                  borderRadius: '4px',
+                  maxWidth: '240px',
+                  height: '4px',
+                  background: 'var(--border)',
+                  borderRadius: '2px',
                   overflow: 'hidden',
-                  margin: '16px auto'
+                  margin: '12px auto'
                 }}>
-                  <div className="progress-bar" style={{
+                  <div style={{
                     width: `${Math.min((bitsReceived / 16) * 100, 100)}%`,
                     height: '100%',
-                    background: 'linear-gradient(90deg, #6366f1, #a855f7)',
-                    borderRadius: '4px',
-                    transition: 'width 0.1s ease-out'
+                    background: 'var(--accent)',
+                    borderRadius: '2px',
+                    transition: 'width 0.1s'
                   }} />
                 </div>
-                <p className="frequency-info">{bitsReceived} / 16 bits ({Math.round((bitsReceived / 16) * 100)}%)</p>
+                <p className="frequency-info">{bitsReceived}/16 bits</p>
               </>
             ) : (
-              <p className="frequency-info" style={{ opacity: 0.6 }}>Waiting for payment request</p>
+              <p className="hint-text">Waiting for payment request</p>
             )}
 
             <div className="signal-bars">

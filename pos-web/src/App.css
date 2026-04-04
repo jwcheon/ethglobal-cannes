@@ -1,14 +1,20 @@
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-tertiary: #1a1a25;
-  --text-primary: #ffffff;
-  --text-secondary: #a0a0b0;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --success: #22c55e;
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --bg-tertiary: #27272a;
+  --text-primary: #fafafa;
+  --text-secondary: #71717a;
+  --text-muted: #52525b;
+  --accent: #3b82f6;
+  --accent-dim: #1d4ed8;
+  --success: #10b981;
   --error: #ef4444;
-  --border: #2a2a35;
+  --border: #27272a;
+  --border-light: #3f3f46;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 .app {
@@ -17,6 +23,7 @@
   flex-direction: column;
   background: var(--bg-primary);
   color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* Header */
@@ -24,39 +31,33 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
 }
 
 .header h1 {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--accent), #a855f7);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 
 .merchant-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .merchant-name {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  padding: 6px 12px;
-  border-radius: 20px;
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--error);
+  background: var(--text-muted);
 }
 
 .status-dot.ready {
@@ -65,12 +66,12 @@
 
 .status-dot.loading {
   background: #f59e0b;
-  animation: pulse 1s infinite;
+  animation: pulse 1.5s infinite;
 }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
 }
 
 /* Main Content */
@@ -80,95 +81,90 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 24px;
-  gap: 32px;
+  padding: 32px 24px;
+  gap: 24px;
 }
 
 /* Amount Display */
 .amount-display {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 4px;
 }
 
 .currency-symbol {
-  font-size: 48px;
-  color: var(--text-secondary);
-  font-weight: 300;
+  font-size: 32px;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .amount-value {
-  font-size: 72px;
-  font-weight: 600;
+  font-size: 56px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  min-width: 200px;
+  letter-spacing: -0.03em;
+  min-width: 180px;
   text-align: center;
 }
 
 .currency-label {
-  font-size: 24px;
-  color: var(--text-secondary);
+  font-size: 16px;
+  color: var(--text-muted);
   font-weight: 500;
+  margin-left: 4px;
 }
 
 /* Keypad */
 .keypad {
   display: grid;
-  grid-template-columns: repeat(3, 80px);
-  gap: 12px;
+  grid-template-columns: repeat(3, 72px);
+  gap: 8px;
 }
 
 .keypad-btn {
-  width: 80px;
-  height: 80px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
-  border: 1px solid var(--border);
+  border: none;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  font-size: 28px;
-  font-weight: 500;
+  font-size: 24px;
+  font-weight: 400;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.15s;
 }
 
 .keypad-btn:hover {
   background: var(--bg-tertiary);
-  border-color: var(--accent);
 }
 
 .keypad-btn:active {
-  transform: scale(0.95);
+  background: var(--border-light);
 }
 
 /* Charge Button */
 .charge-btn {
   width: 100%;
-  max-width: 320px;
-  padding: 18px 32px;
-  font-size: 20px;
-  font-weight: 600;
+  max-width: 280px;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 500;
   color: white;
-  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  background: var(--accent);
   border: none;
-  border-radius: 16px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s;
-  margin-top: 16px;
+  transition: background 0.15s;
+  margin-top: 8px;
 }
 
 .charge-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 40px rgba(99, 102, 241, 0.3);
+  background: var(--accent-dim);
 }
 
 .charge-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
-}
-
-.loading-text {
-  color: var(--text-secondary);
-  font-size: 14px;
 }
 
 /* Transmitting Screen */
@@ -176,14 +172,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 20px;
   text-align: center;
 }
 
 .sonic-animation {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -191,8 +187,9 @@
 
 .sonic-wave {
   position: absolute;
-  border: 3px solid var(--accent);
+  border: 2px solid var(--accent);
   border-radius: 50%;
+  opacity: 0.6;
   animation: wave 2s infinite ease-out;
 }
 
@@ -202,62 +199,63 @@
 
 @keyframes wave {
   0% {
-    width: 40px;
-    height: 40px;
-    opacity: 1;
+    width: 30px;
+    height: 30px;
+    opacity: 0.6;
   }
   100% {
-    width: 150px;
-    height: 150px;
+    width: 120px;
+    height: 120px;
     opacity: 0;
   }
 }
 
 .transmitting-screen h2 {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .payment-details {
   background: var(--bg-secondary);
-  padding: 24px 40px;
-  border-radius: 16px;
+  padding: 20px 32px;
+  border-radius: 12px;
   border: 1px solid var(--border);
 }
 
 .payment-details .amount {
-  font-size: 36px;
-  font-weight: 600;
-  margin-bottom: 8px;
+  font-size: 28px;
+  font-weight: 500;
+  margin-bottom: 4px;
 }
 
 .payment-details .merchant {
-  font-size: 18px;
+  font-size: 14px;
   color: var(--text-secondary);
 }
 
 .payment-details .chain {
-  font-size: 14px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 
 .payment-details .payment-id {
-  font-size: 12px;
-  color: var(--accent);
-  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', Monaco, monospace;
   margin-top: 12px;
   word-break: break-all;
 }
 
 /* Spinner */
 .spinner {
-  width: 60px;
-  height: 60px;
-  border: 4px solid var(--bg-tertiary);
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -266,64 +264,60 @@
 
 .instruction {
   color: var(--text-secondary);
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .frequency-info {
-  font-size: 14px;
-  color: var(--accent);
-  font-family: monospace;
-  background: var(--bg-tertiary);
-  padding: 4px 12px;
-  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', Monaco, monospace;
 }
 
 .hint-text {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 12px;
-  opacity: 0.7;
 }
 
 .action-buttons {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  max-width: 300px;
+  max-width: 280px;
 }
 
 .cancel-btn {
-  padding: 14px 28px;
-  font-size: 16px;
+  padding: 12px 20px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .cancel-btn:hover {
-  border-color: var(--error);
-  color: var(--error);
+  border-color: var(--border-light);
+  color: var(--text-primary);
 }
 
 .simulate-btn {
-  padding: 14px 28px;
-  font-size: 14px;
+  padding: 12px 20px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  background: var(--bg-secondary);
   border: 1px dashed var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
 }
 
 .simulate-btn:hover {
-  border-color: var(--success);
-  color: var(--success);
+  border-color: var(--border-light);
+  color: var(--text-secondary);
 }
 
 /* Success Screen */
@@ -331,32 +325,25 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 20px;
   text-align: center;
 }
 
 .checkmark {
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   background: var(--success);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
+  font-size: 36px;
   color: white;
-  animation: pop 0.3s ease-out;
-}
-
-@keyframes pop {
-  0% { transform: scale(0); }
-  80% { transform: scale(1.1); }
-  100% { transform: scale(1); }
 }
 
 .success-screen h2 {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 500;
   color: var(--success);
 }
 
@@ -365,39 +352,43 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 20px;
   text-align: center;
 }
 
 .error-icon {
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   background: var(--error);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
-  font-weight: bold;
+  font-size: 36px;
+  font-weight: 600;
   color: white;
 }
 
 .error-screen h2 {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 500;
   color: var(--error);
 }
 
+.error-screen p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
 .retry-btn {
-  padding: 14px 28px;
-  font-size: 16px;
+  padding: 12px 24px;
+  font-size: 14px;
   font-weight: 500;
   color: white;
   background: var(--error);
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
 }
 
 .retry-btn:hover {
@@ -406,22 +397,14 @@
 
 /* Footer */
 .footer {
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-top: 1px solid var(--border);
-  background: var(--bg-secondary);
   text-align: center;
 }
 
 .footer p {
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.chain-info {
-  font-size: 12px !important;
-  margin-top: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 /* Signal Bars */
@@ -429,16 +412,16 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 4px;
-  height: 32px;
-  margin: 16px 0;
+  gap: 3px;
+  height: 24px;
+  margin: 12px 0;
 }
 
 .signal-bar {
-  width: 8px;
+  width: 6px;
   background: var(--border);
   border-radius: 2px;
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
 
 .signal-bar.active {
@@ -447,44 +430,45 @@
 
 /* Name Input */
 .name-input {
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 20px;
-  font-size: 18px;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 16px;
   color: var(--text-primary);
   text-align: center;
   width: 100%;
-  max-width: 280px;
-  margin: 16px 0;
+  max-width: 240px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.15s;
 }
 
 .name-input:focus {
-  border-color: var(--accent);
+  border-color: var(--border-light);
 }
 
 .name-input::placeholder {
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 /* Customer Detected */
 .customer-detected {
-  background: linear-gradient(135deg, var(--accent), #a855f7);
-  padding: 16px 24px;
-  border-radius: 12px;
-  margin: 16px 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--success);
+  padding: 12px 20px;
+  border-radius: 10px;
   text-align: center;
 }
 
 .customer-detected .label {
-  font-size: 12px;
-  opacity: 0.8;
-  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--success);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
 }
 
 .customer-detected .name {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 500;
 }
