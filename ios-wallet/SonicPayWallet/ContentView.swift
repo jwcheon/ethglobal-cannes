@@ -77,7 +77,7 @@ struct ContentView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
-                Text("USDC")
+                Text("Balance")
                     .font(.caption)
                     .foregroundColor(.gray)
             }
@@ -341,8 +341,6 @@ struct PaymentConfirmationView: View {
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
-    @State private var ensProfile: ENSProfile?
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -370,11 +368,7 @@ struct PaymentConfirmationView: View {
                                 .foregroundColor(.white)
 
                             if let paymentId = payload.paymentId {
-                                Text("Payment: \(paymentId.prefix(16))...")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            } else if let profile = ensProfile {
-                                Text(profile.description ?? "")
+                                Text("ID: \(paymentId.prefix(20))...")
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             }
@@ -382,7 +376,7 @@ struct PaymentConfirmationView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "checkmark.seal.fill")
                                     .foregroundColor(Color(hex: "22c55e"))
-                                Text(payload.paymentId != nil ? "WalletConnect Pay" : "Verified ENS")
+                                Text("WalletConnect Pay")
                                     .foregroundColor(Color(hex: "22c55e"))
                             }
                             .font(.caption)
@@ -395,7 +389,7 @@ struct PaymentConfirmationView: View {
                             .font(.system(size: 48, weight: .bold))
                             .foregroundColor(.white)
 
-                        Text("on \(payload.chain.capitalized)")
+                        Text("via WalletConnect Pay")
                             .font(.subheadline)
                             .foregroundColor(.gray)
                     }
@@ -437,10 +431,6 @@ struct PaymentConfirmationView: View {
                         .fontWeight(.semibold)
                 }
             }
-        }
-        .onAppear {
-            // Mock ENS resolution
-            ensProfile = ENSProfile.mock(for: payload.merchant)
         }
     }
 }

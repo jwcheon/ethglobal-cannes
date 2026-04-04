@@ -6,19 +6,17 @@ struct PaymentPayload: Codable, Identifiable {
 
     let merchant: String
     let amount: String
-    let currency: String
-    let chain: String
     let nonce: String
     let timestamp: Int
     let paymentId: String?      // WalletConnect Pay payment ID
     let gatewayUrl: String?     // WalletConnect Pay gateway URL
 
     var formattedAmount: String {
-        "$\(amount) \(currency)"
+        "$\(amount)"
     }
 
     var isExpired: Bool {
-        let expiryTime = TimeInterval(timestamp + 60) // 60 second expiry
+        let expiryTime = TimeInterval(timestamp + 120) // 2 minute expiry
         return Date().timeIntervalSince1970 > expiryTime
     }
 }
@@ -33,19 +31,3 @@ enum WalletState {
     case error(message: String)
 }
 
-/// Mock ENS resolution result
-struct ENSProfile {
-    let name: String
-    let address: String
-    let avatar: String?
-    let description: String?
-
-    static func mock(for name: String) -> ENSProfile {
-        ENSProfile(
-            name: name,
-            address: "0x742d35Cc6634C0532925a3b844Bc9e7595f8B55D",
-            avatar: nil,
-            description: "Premium coffee roaster"
-        )
-    }
-}

@@ -401,11 +401,12 @@ class UltrasonicReceiver: ObservableObject {
                     return
                 }
 
-                print("Payment found: \(paymentId), amount: $\(amount)")
+                let merchant = json?["merchant"] as? String ?? "Merchant"
+                print("Payment found: \(paymentId), amount: $\(amount), merchant: \(merchant)")
 
                 // Reset flag to allow this payment
                 self?.hasTriggeredPayment = false
-                self?.triggerPayment(amount: amount, merchant: "merchant", paymentId: paymentId, gatewayUrl: gatewayUrl)
+                self?.triggerPayment(amount: amount, merchant: merchant, paymentId: paymentId, gatewayUrl: gatewayUrl)
 
             } catch {
                 print("JSON parse error: \(error)")
@@ -440,8 +441,6 @@ class UltrasonicReceiver: ObservableObject {
         let payload = PaymentPayload(
             merchant: merchant,
             amount: amount,
-            currency: "USDC",
-            chain: "base",
             nonce: String(UUID().uuidString.prefix(8)).lowercased(),
             timestamp: Int(Date().timeIntervalSince1970),
             paymentId: paymentId,

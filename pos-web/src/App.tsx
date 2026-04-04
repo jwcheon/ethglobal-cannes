@@ -5,7 +5,6 @@ import { createPayment, extractPaymentId, getPaymentStatus } from './lib/walletc
 interface PaymentPayload {
   merchant: string;
   amount: string;
-  currency: string;
   paymentId?: string;
   gatewayUrl?: string;
   shortCode?: string;
@@ -22,11 +21,11 @@ function generateShortCode(): string {
 }
 
 // Store payment mapping on server
-async function storePaymentMapping(shortCode: string, paymentId: string, gatewayUrl: string, amount: string) {
+async function storePaymentMapping(shortCode: string, paymentId: string, gatewayUrl: string, amount: string, merchant: string) {
   await fetch('/api/store', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ shortCode, paymentId, gatewayUrl, amount }),
+    body: JSON.stringify({ shortCode, paymentId, gatewayUrl, amount, merchant }),
   });
 }
 
@@ -36,7 +35,6 @@ let audioContext: AudioContext | null = null;
 function App() {
   const [amount, setAmount] = useState('')
   const [merchantName] = useState('SonicPay Demo')
-  const [currency] = useState('USDC')
   const [audioReady, setAudioReady] = useState(false)
   const [status, setStatus] = useState<'idle' | 'creating' | 'transmitting' | 'waiting' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
@@ -139,13 +137,12 @@ function App() {
 
       // Generate short code and store mapping
       const shortCode = generateShortCode();
-      await storePaymentMapping(shortCode, paymentId, gatewayUrl, amount);
+      await storePaymentMapping(shortCode, paymentId, gatewayUrl, amount, merchantName);
       console.log('Short code:', shortCode);
 
       const payload: PaymentPayload = {
         merchant: merchantName,
         amount: amount,
-        currency: currency,
         paymentId: paymentId,
         gatewayUrl: gatewayUrl,
         shortCode: shortCode,
@@ -202,7 +199,7 @@ function App() {
       setErrorMessage(err instanceof Error ? err.message : 'Unknown error');
       setStatus('error');
     }
-  }, [amount, merchantName, currency, transmitData]);
+  }, [amount, merchantName, transmitData]);
 
   const stopTransmitting = useCallback(() => {
     stopRef.current = true;
@@ -251,7 +248,7 @@ function App() {
             <div className="amount-display">
               <span className="currency-symbol">$</span>
               <span className="amount-value">{amount || '0.00'}</span>
-              <span className="currency-label">{currency}</span>
+              <span className="currency-label">USD</span>
             </div>
 
             <div className="keypad">
@@ -271,7 +268,7 @@ function App() {
               onClick={startTransmitting}
               disabled={!audioReady || !amount || parseFloat(amount) <= 0}
             >
-              Charge ${amount || '0.00'} {currency}
+              Charge ${amount || '0.00'}
             </button>
           </>
         )}
@@ -282,7 +279,7 @@ function App() {
             <h2>Creating Payment...</h2>
             <p className="frequency-info">Connecting to WalletConnect Pay</p>
             <div className="payment-details">
-              <p className="amount">${amount} {currency}</p>
+              <p className="amount">${amount}</p>
             </div>
           </div>
         )}
@@ -297,7 +294,7 @@ function App() {
             <h2>Emitting Ultrasonic Signal...</h2>
             <p className="frequency-info">Code: {lastPayload?.shortCode}</p>
             <div className="payment-details">
-              <p className="amount">${lastPayload?.amount} {lastPayload?.currency}</p>
+              <p className="amount">${lastPayload?.amount} </p>
             </div>
             <p className="instruction">~10 seconds • Phone will detect automatically</p>
 
@@ -315,7 +312,7 @@ function App() {
             <h2>Waiting for Payment...</h2>
             <p className="frequency-info">Customer confirming on their device</p>
             <div className="payment-details">
-              <p className="amount">${lastPayload?.amount} {lastPayload?.currency}</p>
+              <p className="amount">${lastPayload?.amount} </p>
               <p className="payment-id">ID: {lastPayload?.paymentId}</p>
             </div>
 
@@ -335,7 +332,7 @@ function App() {
             <div className="checkmark">✓</div>
             <h2>Payment Received!</h2>
             <div className="payment-details">
-              <p className="amount">${lastPayload?.amount} {lastPayload?.currency}</p>
+              <p className="amount">${lastPayload?.amount} </p>
               <p className="merchant">From: customer.eth</p>
             </div>
           </div>

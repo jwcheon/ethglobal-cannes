@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // In-memory payment store (for API endpoints)
-const paymentStore = new Map<string, { paymentId: string; gatewayUrl: string; amount: string; createdAt: number }>();
+const paymentStore = new Map<string, { paymentId: string; gatewayUrl: string; amount: string; merchant: string; createdAt: number }>();
 
 export default defineConfig({
   plugins: [
@@ -17,8 +17,8 @@ export default defineConfig({
             req.on('data', chunk => body += chunk);
             req.on('end', () => {
               try {
-                const { shortCode, paymentId, gatewayUrl, amount } = JSON.parse(body);
-                paymentStore.set(shortCode, { paymentId, gatewayUrl, amount, createdAt: Date.now() });
+                const { shortCode, paymentId, gatewayUrl, amount, merchant } = JSON.parse(body);
+                paymentStore.set(shortCode, { paymentId, gatewayUrl, amount, merchant: merchant || 'Merchant', createdAt: Date.now() });
                 console.log(`[API] Stored: ${shortCode} → ${paymentId}`);
 
                 // Auto-expire after 10 minutes
