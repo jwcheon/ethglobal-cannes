@@ -679,7 +679,7 @@ function Listener() {
       <header className="header">
         <h1>👀 dontlook.fyi</h1>
         <div className="merchant-info">
-          <Link to="/merchant" className="mode-switch">POS →</Link>
+          <Link to="/" className="mode-switch">← POS</Link>
           <span className={`status-dot ${isListening ? 'ready' : 'loading'}`} />
         </div>
       </header>

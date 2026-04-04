@@ -667,7 +667,7 @@ function MerchantPOS() {
       <header className="header">
         <h1>👀 dontlook.fyi</h1>
         <div className="merchant-info">
-          <Link to="/" className="mode-switch">← Wallet</Link>
+          <Link to="/customer" className="mode-switch">Customer →</Link>
           <span className={`status-dot ${audioReady ? 'ready' : 'loading'}`} />
         </div>
       </header>
