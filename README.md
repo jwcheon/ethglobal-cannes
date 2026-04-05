@@ -1,4 +1,4 @@
-# supersonic.fyi
+# ultrasonic.fyi
 
 > Ultrasonic crypto payments. No QRs, no bluetooth.
 
@@ -7,7 +7,7 @@
 
 ## Overview
 
-supersonic.fyi enables crypto payments through ultrasonic sound waves. A merchant POS broadcasts payment requests at frequencies humans can't hear (18-19kHz), and any nearby device with a microphone can receive them.
+ultrasonic.fyi enables crypto payments through ultrasonic sound waves. A merchant POS broadcasts payment requests at frequencies humans can't hear (18-19kHz), and any nearby device with a microphone can receive them.
 
 One merchant. Every customer in range. No pairing required.
 
