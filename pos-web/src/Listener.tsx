@@ -39,7 +39,11 @@ function generateCustomerCode(): string {
   return code;
 }
 
+// Detect mobile devices
+const isMobile = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
 function Listener() {
+  const [isOnMobile] = useState(isMobile)
   const [isListening, setIsListening] = useState(false)
   const [signalStrength, setSignalStrength] = useState(0)
   const [debugInfo, setDebugInfo] = useState('')
@@ -695,39 +699,41 @@ function Listener() {
             <h2>Ready to Receive</h2>
             <p className="hint-text">Listen for payment requests</p>
 
-            <div style={{ margin: '24px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <input
-                type="text"
-                className="name-input"
-                placeholder="Your name"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-              />
-              <button
-                onClick={emitNameOnce}
-                disabled={!customerName.trim() || isEmittingName || isEmittingOffline}
-                className="simulate-btn"
-                style={{
-                  background: !customerName.trim() || isEmittingName ? 'var(--bg-tertiary)' : 'var(--success)',
-                  border: 'none',
-                  opacity: !customerName.trim() || isEmittingName ? 0.5 : 1
-                }}
-              >
-                {isEmittingName ? 'Emitting...' : 'Emit My Name'}
-              </button>
-              <button
-                onClick={startOfflineMode}
-                disabled={!customerName.trim() || isEmittingOffline || isEmittingName}
-                className="simulate-btn"
-                style={{
-                  background: 'transparent',
-                  border: '1px dashed var(--border)',
-                  opacity: !customerName.trim() ? 0.5 : 1
-                }}
-              >
-                Offline Mode
-              </button>
-            </div>
+            {!isOnMobile && (
+              <div style={{ margin: '24px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <input
+                  type="text"
+                  className="name-input"
+                  placeholder="Your name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                />
+                <button
+                  onClick={emitNameOnce}
+                  disabled={!customerName.trim() || isEmittingName || isEmittingOffline}
+                  className="simulate-btn"
+                  style={{
+                    background: !customerName.trim() || isEmittingName ? 'var(--bg-tertiary)' : 'var(--success)',
+                    border: 'none',
+                    opacity: !customerName.trim() || isEmittingName ? 0.5 : 1
+                  }}
+                >
+                  {isEmittingName ? 'Emitting...' : 'Emit My Name'}
+                </button>
+                <button
+                  onClick={startOfflineMode}
+                  disabled={!customerName.trim() || isEmittingOffline || isEmittingName}
+                  className="simulate-btn"
+                  style={{
+                    background: 'transparent',
+                    border: '1px dashed var(--border)',
+                    opacity: !customerName.trim() ? 0.5 : 1
+                  }}
+                >
+                  Offline Mode
+                </button>
+              </div>
+            )}
 
             <button className="charge-btn" onClick={startListening}>
               Start Listening

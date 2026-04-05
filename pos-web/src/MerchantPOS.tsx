@@ -33,7 +33,11 @@ async function storePaymentMapping(shortCode: string, paymentId: string, gateway
 // Audio context and oscillator
 let audioContext: AudioContext | null = null;
 
+// Detect mobile devices
+const isMobile = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
 function MerchantPOS() {
+  const [isOnMobile] = useState(isMobile)
   const [amount, setAmount] = useState('')
   const [merchantName] = useState(import.meta.env.VITE_MERCHANT_NAME || 'dontlook.fyi')
   const [audioReady, setAudioReady] = useState(false)
@@ -675,6 +679,22 @@ function MerchantPOS() {
       <main className="main">
         {status === 'idle' && (
           <>
+            {isOnMobile && (
+              <div style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                textAlign: 'center',
+                maxWidth: '300px'
+              }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
+                  Mobile speaker emission is experimental. For best results, use PC/Mac.
+                </p>
+              </div>
+            )}
+
             {detectedCustomer && (
               <div className="customer-detected">
                 <div className="label">Customer Detected</div>

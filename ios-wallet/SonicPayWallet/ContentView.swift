@@ -114,6 +114,9 @@ struct ContentView: View {
                 .foregroundColor(Color(hex: "71717a"))
                 .multilineTextAlignment(.center)
 
+            // Name emission disabled - phone speakers don't emit ultrasonic well
+            // Use web version (/customer) for name emission instead
+            /*
             // Name input and emit button
             VStack(spacing: 12) {
                 TextField("Your name", text: $customerName)
@@ -178,6 +181,7 @@ struct ContentView: View {
                 .disabled(customerName.isEmpty || isEmittingOffline || isEmittingName)
             }
             .padding(.top, 16)
+            */
         }
     }
 
