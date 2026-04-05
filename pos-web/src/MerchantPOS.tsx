@@ -39,7 +39,7 @@ const isMobile = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 function MerchantPOS() {
   const [isOnMobile] = useState(isMobile)
   const [amount, setAmount] = useState('')
-  const [merchantName] = useState(import.meta.env.VITE_MERCHANT_NAME || 'dontlook.fyi')
+  const [merchantName] = useState(import.meta.env.VITE_MERCHANT_NAME || 'supersonic.fyi')
   const [audioReady, setAudioReady] = useState(false)
   const [status, setStatus] = useState<'idle' | 'creating' | 'transmitting' | 'waiting' | 'processing' | 'success' | 'error' | 'offline'>('idle')
   const [offlineName, setOfflineName] = useState<string | null>(null)
@@ -669,7 +669,7 @@ function MerchantPOS() {
   return (
     <div className="app">
       <header className="header">
-        <h1>👀 dontlook.fyi</h1>
+        <h1>🔊 supersonic.fyi</h1>
         <div className="merchant-info">
           <Link to="/customer" className="mode-switch">Customer →</Link>
           <span className={`status-dot ${audioReady ? 'ready' : 'loading'}`} />

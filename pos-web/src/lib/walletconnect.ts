@@ -71,7 +71,7 @@ export async function createPayment(amountCents: number): Promise<CreatePaymentR
       'Api-Key': WC_API_KEY,
       'Merchant-Id': WC_MERCHANT_ID,
       'Content-Type': 'application/json',
-      'Sdk-Name': 'dontlookfyi',
+      'Sdk-Name': 'supersonicfyi',
       'Sdk-Version': '1.0.0',
       'Sdk-Platform': 'web',
     },

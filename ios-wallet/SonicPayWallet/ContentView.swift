@@ -58,7 +58,7 @@ struct ContentView: View {
     // MARK: - Header View
     private var headerView: some View {
         HStack {
-            Text("👀 dontlook.fyi")
+            Text("🔊 supersonic.fyi")
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(.white)

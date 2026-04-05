@@ -573,7 +573,7 @@ class UltrasonicReceiver: ObservableObject {
     //   cd pos-web && npm run tunnel (in terminal 2)
     //   Copy the https://xxx.trycloudflare.com URL
     //
-    // TODO: Change to https://dontlook.fyi once DNS is configured
+    // TODO: Change to https://supersonic.fyi once DNS is configured
     private let posServerURL = "https://sonicpay-pos.pages.dev"
 
     // MARK: - Data Processing
