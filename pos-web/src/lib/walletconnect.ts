@@ -64,14 +64,14 @@ export async function createPayment(amountCents: number): Promise<CreatePaymentR
   console.log('Creating WC Pay payment:', request);
   console.log('Using API URL:', WC_API_URL);
 
-  // Endpoint: POST /v1/payments (from OpenAPI spec)
+  // Endpoint: POST /v1/payments
   const response = await fetch(`${WC_API_URL}/v1/payments`, {
     method: 'POST',
     headers: {
       'Api-Key': WC_API_KEY,
       'Merchant-Id': WC_MERCHANT_ID,
       'Content-Type': 'application/json',
-      'Sdk-Name': 'sonicpay',
+      'Sdk-Name': 'dontlookfyi',
       'Sdk-Version': '1.0.0',
       'Sdk-Platform': 'web',
     },
