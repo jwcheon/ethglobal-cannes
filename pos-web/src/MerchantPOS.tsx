@@ -641,16 +641,6 @@ function MerchantPOS() {
     setLastPayload(null);
   }, []);
 
-  const simulatePaymentReceived = useCallback(() => {
-    stopTransmitting();
-    setStatus('success');
-    setTimeout(() => {
-      setStatus('idle');
-      setAmount('');
-      setLastPayload(null);
-    }, 5000);
-  }, [stopTransmitting]);
-
   const handleAmountClick = (value: string) => {
     if (value === 'C') {
       setAmount('');
@@ -841,9 +831,6 @@ function MerchantPOS() {
             </div>
 
             <div className="action-buttons">
-              <button className="simulate-btn" onClick={simulatePaymentReceived}>
-                [Demo] Simulate Payment Received
-              </button>
               <button className="cancel-btn" onClick={stopTransmitting}>
                 Cancel
               </button>
