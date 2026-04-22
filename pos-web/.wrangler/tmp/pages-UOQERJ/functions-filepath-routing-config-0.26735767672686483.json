@@ -1,0 +1,101 @@
+{
+  "routes": [
+    {
+      "routePath": "/api/customer/lookup/:code",
+      "mountPath": "/api/customer/lookup",
+      "method": "GET",
+      "module": [
+        "api/customer/lookup/[code].ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/customer/lookup/:code",
+      "mountPath": "/api/customer/lookup",
+      "method": "OPTIONS",
+      "module": [
+        "api/customer/lookup/[code].ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/customer/store",
+      "mountPath": "/api/customer",
+      "method": "OPTIONS",
+      "module": [
+        "api/customer/store.ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/customer/store",
+      "mountPath": "/api/customer",
+      "method": "POST",
+      "module": [
+        "api/customer/store.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/lookup/:code",
+      "mountPath": "/api/lookup",
+      "method": "GET",
+      "module": [
+        "api/lookup/[code].ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/lookup/:code",
+      "mountPath": "/api/lookup",
+      "method": "OPTIONS",
+      "module": [
+        "api/lookup/[code].ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/store",
+      "mountPath": "/api",
+      "method": "OPTIONS",
+      "module": [
+        "api/store.ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/store",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/store.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/wcgateway/:path*",
+      "mountPath": "/wcgateway",
+      "method": "OPTIONS",
+      "module": [
+        "wcgateway/[[path]].ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/wcpay/:path*",
+      "mountPath": "/wcpay",
+      "method": "OPTIONS",
+      "module": [
+        "wcpay/[[path]].ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/wcgateway/:path*",
+      "mountPath": "/wcgateway",
+      "method": "",
+      "module": [
+        "wcgateway/[[path]].ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/wcpay/:path*",
+      "mountPath": "/wcpay",
+      "method": "",
+      "module": [
+        "wcpay/[[path]].ts:onRequest"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}

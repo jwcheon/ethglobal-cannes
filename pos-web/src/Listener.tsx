@@ -679,7 +679,7 @@ function Listener() {
   }
 
   return (
-    <div className="app">
+    <div className="app" style={{ background: '#111114' }}>
       <header className="header">
         <h1>🔊 ultrasonic.fyi</h1>
         <div className="merchant-info">
